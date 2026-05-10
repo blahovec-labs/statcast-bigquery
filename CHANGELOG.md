@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.1.2] - 2026-05-10
+
+### Fixed
+- Writer now force-casts STRING columns to pandas string dtype before
+  pyarrow conversion. pybaseball returns some columns (notably `sv_id`)
+  as Int64 when all values are NULL — pyarrow doesn't auto-coerce
+  Int64 → STRING and the load fails with "Expected a string or bytes
+  dtype, got int64". The 0.1.1 schema fix was correct but insufficient
+  on its own; this complements it with the writer-side coercion.
+
 ## [0.1.1] - 2026-05-10
 
 ### Fixed

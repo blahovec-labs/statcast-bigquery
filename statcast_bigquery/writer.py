@@ -46,6 +46,21 @@ def _bq_schema_from_specs() -> list[bigquery.SchemaField]:
     return fields
 
 
+def _coerce_df_to_schema(df: pd.DataFrame) -> pd.DataFrame:
+    """Coerce dataframe column dtypes so pyarrow can convert into the BQ schema.
+
+    pyarrow auto-casts numeric → numeric and dt → DATE/TIMESTAMP, but it does NOT
+    auto-cast Int64/Float64 → STRING. pybaseball returns some columns (e.g. sv_id)
+    as Int64 when the column is all-null, even though real values are strings —
+    this fails Arrow conversion against a STRING BQ column. Force-cast STRING
+    columns to pandas string dtype.
+    """
+    for spec in PITCHES_SCHEMA:
+        if spec.type == "STRING" and spec.name in df.columns:
+            df[spec.name] = df[spec.name].astype("string")
+    return df
+
+
 class BigQueryWriter:
     """Idempotent writer for `statcast_pitches`."""
 
@@ -106,6 +121,7 @@ class BigQueryWriter:
             write_disposition=bigquery.WriteDisposition.WRITE_APPEND,
             source_format=bigquery.SourceFormat.PARQUET,
         )
+        df = _coerce_df_to_schema(df)
         self.client.load_table_from_dataframe(
             df, str(ref), job_config=load_job_config
         ).result()
