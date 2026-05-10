@@ -8,6 +8,7 @@ import logging
 import sys
 from datetime import date, datetime, timedelta
 
+import pandas as pd
 from google.cloud import bigquery
 
 from statcast_bigquery._version import __version__
@@ -19,6 +20,8 @@ from statcast_bigquery.docs.renderers import (
     render_llm_context,
     render_markdown,
 )
+from statcast_bigquery.umpires.client import UmpireClient
+from statcast_bigquery.umpires.writer import UmpireTableRef, UmpireWriter
 from statcast_bigquery.verify.savant import (
     BATTING_METRIC_TO_SAVANT_FIELD,
     PITCHING_METRIC_TO_SAVANT_FIELD,
@@ -44,7 +47,18 @@ def build_parser() -> argparse.ArgumentParser:
     p_sync = sub.add_parser("sync", help="Pull Statcast and write to BigQuery")
     p_sync.add_argument("--start", required=True, help="YYYY-MM-DD start (inclusive)")
     p_sync.add_argument("--end", required=True, help="YYYY-MM-DD end (inclusive)")
-    p_sync.add_argument("--table", required=True, help="project.dataset.table")
+    p_sync.add_argument("--table", required=True, help="project.dataset.table for pitches")
+    p_sync.add_argument(
+        "--umpires-table",
+        help=(
+            "project.dataset.table for game_umpires. "
+            "Defaults to <pitches-dataset>.game_umpires."
+        ),
+    )
+    p_sync.add_argument(
+        "--skip-umpires", action="store_true",
+        help="Skip umpire ingestion (pitches only).",
+    )
     p_sync.add_argument("--chunk-by", default="year", choices=["year", "month", "range"])
     p_sync.add_argument("--resume", action="store_true",
                         help="Skip year-chunks already recorded in _statcast_ingest_runs")
@@ -92,8 +106,22 @@ def cmd_sync(ns: argparse.Namespace) -> int:
     sc = StatcastClient()
     writer = BigQueryWriter(client=client)
     ref = TableRef.parse(ns.table)
+
+    sync_umpires = not getattr(ns, "skip_umpires", False)
+    umpire_ref: UmpireTableRef | None = None
+    umpire_client: UmpireClient | None = None
+    umpire_writer: UmpireWriter | None = None
+    if sync_umpires:
+        umpire_table = getattr(ns, "umpires_table", None) or \
+            f"{ref.project}.{ref.dataset}.game_umpires"
+        umpire_ref = UmpireTableRef.parse(umpire_table)
+        umpire_client = UmpireClient()
+        umpire_writer = UmpireWriter(client=client)
+
     if not ns.dry_run:
         writer.create_table_if_missing(ref)
+        if umpire_writer is not None and umpire_ref is not None:
+            umpire_writer.create_table_if_missing(umpire_ref)
 
     chunks = _iter_year_chunks(ns.start, ns.end) if ns.chunk_by == "year" \
         else [(ns.start, ns.end)]
@@ -103,6 +131,20 @@ def cmd_sync(ns: argparse.Namespace) -> int:
             continue
         df = sc.fetch(cs, ce)
         writer.write(ref, df, cs, ce)
+
+        if (sync_umpires and umpire_client is not None
+                and umpire_writer is not None and umpire_ref is not None):
+            if df.empty:
+                log.info("no pitches for chunk %s -> %s; skip umpire fetch", cs, ce)
+                continue
+            games = (
+                df[["game_pk", "game_date"]]
+                .drop_duplicates()
+                .assign(game_date=lambda x: pd.to_datetime(x["game_date"]).dt.strftime("%Y-%m-%d"))
+                .itertuples(index=False, name=None)
+            )
+            umpire_df = umpire_client.fetch(games)
+            umpire_writer.write(umpire_ref, umpire_df, cs, ce)
     return 0
 
 

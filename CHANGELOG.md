@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.2.0] - 2026-05-10
+
+### Added
+- **Umpire ingestion.** New `game_umpires` table sourced from MLB statsapi
+  (`/api/v1/game/{game_pk}/boxscore` officials). One row per
+  (game_pk, position); positions are HP/1B/2B/3B (LF/RF in postseason).
+  `statcast-bigquery sync` now fetches both pitches AND umpires by default
+  in a single command. Use `--skip-umpires` to opt out, or
+  `--umpires-table` to override the default `<dataset>.game_umpires`.
+- New module `statcast_bigquery.umpires` (schema, client, writer).
+- `UmpireClient` uses `ThreadPoolExecutor` with 8 concurrent fetches +
+  exponential backoff retry. ~25K games (12 years) backfills in minutes,
+  not hours.
+
+### Why
+- Statcast's pitch-level `umpire` field has been NULL across every season
+  since 2015. To do umpire-bias / strike-zone analysis you need a real
+  identifier, which only statsapi provides. Bundling the source means a
+  single `sync` call leaves no MLB_AI feature unbacked except odds.
+
 ## [0.1.3] - 2026-05-10
 
 ### Fixed

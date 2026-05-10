@@ -49,8 +49,9 @@ def test_parser_rejects_invalid_format():
 
 
 def test_main_version_flag(capsys):
+    from statcast_bigquery import __version__
     with pytest.raises(SystemExit) as exc:
         main(["--version"])
     captured = capsys.readouterr()
-    assert "0.1.0" in captured.out
+    assert __version__ in captured.out
     assert exc.value.code == 0
