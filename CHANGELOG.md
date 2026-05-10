@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.3] - 2026-05-10
+
+### Fixed
+- 7 bat-tracking columns retyped INT64 → FLOAT64. The 0.1.0 schema
+  declared these as integers based on the spec table, but Statcast
+  returns them as floats with real fractional values (e.g.
+  `bat_speed=71.3 mph`, `attack_angle=10.03 degrees`). The error
+  surfaces only on 2023+ data when bat tracking is populated:
+  `pyarrow.lib.ArrowInvalid: Float value 66.5 was truncated converting to int64`.
+  Affected columns: `bat_speed`, `swing_length`, `attack_angle`,
+  `attack_direction`, `swing_path_tilt`,
+  `intercept_ball_minus_batter_pos_x_inches`,
+  `intercept_ball_minus_batter_pos_y_inches`.
+
 ## [0.1.2] - 2026-05-10
 
 ### Fixed

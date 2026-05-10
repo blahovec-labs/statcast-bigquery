@@ -1800,7 +1800,7 @@ PITCHES_SCHEMA: list[ColumnSpec] = [
     # -------------------------------------------------------------------------
     ColumnSpec(
         name="bat_speed",
-        type="INT64",
+        type="FLOAT64",
         mode="NULLABLE",
         short_description="Bat speed in mph at the sweet spot (2024+).",
         business_definition=(
@@ -1814,7 +1814,7 @@ PITCHES_SCHEMA: list[ColumnSpec] = [
         example_value=72,
         gotchas=[
             "NULL for all pre-2024 data — do not interpret NULL as zero.",
-            "Stored as integer (rounded from float).",
+            "Stored as FLOAT64 (sub-mph fractional values are real).",
         ],
         statsapi_equivalent=None,
         pybaseball_source_field="bat_speed",
@@ -1822,7 +1822,7 @@ PITCHES_SCHEMA: list[ColumnSpec] = [
     ),
     ColumnSpec(
         name="swing_length",
-        type="INT64",
+        type="FLOAT64",
         mode="NULLABLE",
         short_description="Swing length in feet (2024+).",
         business_definition=(
@@ -1836,7 +1836,7 @@ PITCHES_SCHEMA: list[ColumnSpec] = [
         example_value=7,
         gotchas=[
             "NULL for all pre-2024 data.",
-            "Stored as integer (rounded from float).",
+            "Stored as FLOAT64 (sub-mph fractional values are real).",
         ],
         statsapi_equivalent=None,
         pybaseball_source_field="swing_length",
@@ -1844,7 +1844,7 @@ PITCHES_SCHEMA: list[ColumnSpec] = [
     ),
     ColumnSpec(
         name="attack_angle",
-        type="INT64",
+        type="FLOAT64",
         mode="NULLABLE",
         short_description="Vertical bat attack angle in degrees at contact.",
         business_definition=(
@@ -1863,7 +1863,7 @@ PITCHES_SCHEMA: list[ColumnSpec] = [
     ),
     ColumnSpec(
         name="attack_direction",
-        type="INT64",
+        type="FLOAT64",
         mode="NULLABLE",
         short_description="Horizontal bat attack direction in degrees.",
         business_definition=(
@@ -1882,7 +1882,7 @@ PITCHES_SCHEMA: list[ColumnSpec] = [
     ),
     ColumnSpec(
         name="swing_path_tilt",
-        type="INT64",
+        type="FLOAT64",
         mode="NULLABLE",
         short_description="Vertical angular orientation of swing plane (40ms before contact).",
         business_definition=(
@@ -1901,7 +1901,7 @@ PITCHES_SCHEMA: list[ColumnSpec] = [
     ),
     ColumnSpec(
         name="intercept_ball_minus_batter_pos_x_inches",
-        type="INT64",
+        type="FLOAT64",
         mode="NULLABLE",
         short_description="Horizontal gap between bat-ball intercept and batter center (inches).",
         business_definition=(
@@ -1921,7 +1921,7 @@ PITCHES_SCHEMA: list[ColumnSpec] = [
     ),
     ColumnSpec(
         name="intercept_ball_minus_batter_pos_y_inches",
-        type="INT64",
+        type="FLOAT64",
         mode="NULLABLE",
         short_description="Mound-to-plate gap between intercept and batter center (inches).",
         business_definition=(
