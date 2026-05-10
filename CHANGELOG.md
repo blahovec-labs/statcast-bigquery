@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.1] - 2026-05-10
+
+### Fixed
+- `sv_id` schema type changed from `INT64` to `STRING`. Real Statcast values
+  are encoded as `YYMMDD_HHMMSS` (e.g. `'151004_174434'`) — historical years
+  (notably 2015) contain non-numeric values that fail Arrow conversion to
+  int64 during BigQuery load. The 2024-only smoke tests passed in 0.1.0
+  because pybaseball returns the column all-null for recent years.
+
 ## [0.1.0] - 2026-05-?? (planned)
 
 ### Added

@@ -190,19 +190,23 @@ PITCHES_SCHEMA: list[ColumnSpec] = [
     ),
     ColumnSpec(
         name="sv_id",
-        type="INT64",
+        type="STRING",
         mode="NULLABLE",
         short_description="Non-unique Baseball Savant play-event ID per game.",
         business_definition=(
             "Internal Baseball Savant identifier for a play event within a game. "
+            "Encoded as 'YYMMDD_HHMMSS' (string), not a numeric ID. "
             "Not guaranteed to be unique; use (game_pk, at_bat_number, pitch_number) "
             "as the natural key instead."
         ),
         semantic_tags=["identifier"],
         valid_range=None,
         valid_values=None,
-        example_value=None,
-        gotchas=["Not unique — do not use as a primary key."],
+        example_value="151004_174434",
+        gotchas=[
+            "Not unique — do not use as a primary key.",
+            "String, not int — values like '151004_174434' encode YYMMDD_HHMMSS.",
+        ],
         statsapi_equivalent=None,
         pybaseball_source_field="sv_id",
         deprecated_in_year=None,
