@@ -21,10 +21,10 @@ jobs:
       - name: Install
         run: uv pip install -e ".[dev]"
       - name: Lint
-        run: ruff check .
+        run: uv run ruff check .
       - name: Type check
-        run: pyright
+        run: uv run pyright
       - name: Test
-        run: pytest -v --cov=statcast_bigquery --cov-report=xml
+        run: uv run pytest -v --cov=statcast_bigquery --cov-report=xml
       - name: Build
-        run: python -m build
+        run: uv run python -m build
