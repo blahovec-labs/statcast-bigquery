@@ -56,4 +56,19 @@ the dictionary table are untouched. Required target schema:
         --metric all --season 2024 \
         --table myproject.mydataset.statcast_pitches
 
+## Standings verify
+
+End-to-end integrity check: reconstruct each team's season standings
+from the pitch data and compare against MLB statsapi:
+
+    statcast-bigquery verify \
+        --source baseball-savant \
+        --aggregation team-season \
+        --metric all --season 2024 \
+        --table myproject.mydataset.statcast_pitches
+
+Three metrics are checked per team: `wins`, `losses`, `run_diff`.
+Default tolerances are ±1 game and ±5 runs. A passing run gives high
+confidence that no games are missing from the pitch ingest.
+
 MIT licensed. This software does not include or distribute MLB data.

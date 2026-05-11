@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.4.0] - 2026-05-11
+
+### Added
+- New `verify` aggregation: `--aggregation team-season` with metrics
+  `wins`, `losses`, `run_diff`. Reconstructs each team's season W-L-RD
+  purely from `statcast_pitches` (last pitch per game → final score →
+  per-team aggregate) and compares against MLB statsapi
+  `/api/v1/standings`. Provides an end-to-end integrity check: if the
+  pitch ingest is sound, the derived standings should match statsapi
+  to within ±1 game / ±5 runs.
+- New module `statcast_bigquery.standings` with `StandingsClient`
+  (statsapi fetcher; one HTTP call per season returns all 30 teams).
+- `Comparison.entity_id` is now `int | str` (was `int`). The team
+  verifier uses team abbreviation strings; the existing batter and
+  pitcher verifiers continue to pass `int(player_id)` with no change
+  in behavior.
+
 ## [0.3.1] - 2026-05-11
 
 ### Fixed
