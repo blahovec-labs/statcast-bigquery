@@ -72,16 +72,14 @@ PITCHING_SAVANT_SCALE: Final[dict[str, float]] = {
 # Each template returns columns: id (INT64), value (FLOAT64), sample_size (INT64).
 BATTING_AGG_SQL: Final[dict[str, str]] = {
     "barrel_rate": (
+        # Use Statcast's canonical barrel classification (launch_speed_angle=6)
+        # rather than approximating the EV-dependent zone in SQL. The classification
+        # is precomputed per-pitch by MLB; this matches Savant's brl_percent exactly.
         "SELECT batter AS id,\n"
-        "       AVG(IF(\n"
-        "         launch_speed >= 98\n"
-        "         AND launch_angle BETWEEN GREATEST(8, 26 - (launch_speed - 98))\n"
-        "                              AND LEAST(50, 30 + (launch_speed - 98)),\n"
-        "         1.0, 0.0)) AS value,\n"
+        "       AVG(IF(launch_speed_angle = 6, 1.0, 0.0)) AS value,\n"
         "       COUNT(*) AS sample_size\n"
         "FROM `{table}`\n"
-        "WHERE game_type='R' AND description = 'hit_into_play'\n"
-        "  AND launch_speed IS NOT NULL\n"
+        "WHERE game_type='R' AND launch_speed_angle IS NOT NULL\n"
         "  AND game_year = @season\n"
         "GROUP BY batter\n"
         "HAVING sample_size >= @min_n;"
@@ -92,6 +90,7 @@ BATTING_AGG_SQL: Final[dict[str, str]] = {
         "       COUNT(*) AS sample_size\n"
         "FROM `{table}`\n"
         "WHERE game_type='R' AND description = 'hit_into_play'\n"
+        "  AND bb_type IN ('popup','ground_ball','line_drive','fly_ball')\n"
         "  AND launch_speed IS NOT NULL\n"
         "  AND game_year = @season\n"
         "GROUP BY batter HAVING sample_size >= @min_n;"
@@ -100,6 +99,7 @@ BATTING_AGG_SQL: Final[dict[str, str]] = {
         "SELECT batter AS id, AVG(launch_speed) AS value, COUNT(*) AS sample_size\n"
         "FROM `{table}`\n"
         "WHERE game_type='R' AND description = 'hit_into_play'\n"
+        "  AND bb_type IN ('popup','ground_ball','line_drive','fly_ball')\n"
         "  AND launch_speed IS NOT NULL\n"
         "  AND game_year = @season\n"
         "GROUP BY batter HAVING sample_size >= @min_n;"
@@ -108,17 +108,37 @@ BATTING_AGG_SQL: Final[dict[str, str]] = {
         "SELECT batter AS id, AVG(launch_angle) AS value, COUNT(*) AS sample_size\n"
         "FROM `{table}`\n"
         "WHERE game_type='R' AND description = 'hit_into_play'\n"
+        "  AND bb_type IN ('popup','ground_ball','line_drive','fly_ball')\n"
         "  AND launch_angle IS NOT NULL\n"
         "  AND game_year = @season\n"
         "GROUP BY batter HAVING sample_size >= @min_n;"
     ),
     "xwoba_contact": (
-        "SELECT batter AS id, AVG(estimated_woba_using_speedangle) AS value,\n"
-        "       COUNT(*) AS sample_size\n"
+        # Despite the name "xwoba_contact", this matches Savant's est_woba which is
+        # xwOBA over ALL plate appearances (not just contact):
+        #   numerator: sum of per-PA xwOBA contributions
+        #     - BBE: estimated_woba_using_speedangle (the expected wOBA from EV+LA)
+        #     - non-BBE (K, BB, HBP, ROE): the constant woba_value (which is the
+        #       canonical wOBA weight for that event — 0.69 for BB, 0.72 for HBP,
+        #       0 for K and ROE)
+        #   denominator: count of PA excluding sac bunts (woba_denom=0)
+        # The * woba_denom in the numerator effectively zeros out sac bunts so they
+        # contribute neither to numerator nor denominator.
+        "SELECT batter AS id,\n"
+        "       SAFE_DIVIDE(\n"
+        "         SUM(\n"
+        "           CASE\n"
+        "             WHEN description = 'hit_into_play'\n"
+        "               THEN COALESCE(estimated_woba_using_speedangle, 0)\n"
+        "             ELSE COALESCE(woba_value, 0)\n"
+        "           END * woba_denom\n"
+        "         ),\n"
+        "         SUM(woba_denom)\n"
+        "       ) AS value,\n"
+        "       SUM(woba_denom) AS sample_size\n"
         "FROM `{table}`\n"
-        "WHERE game_type='R' AND description = 'hit_into_play'\n"
-        "  AND launch_speed IS NOT NULL\n"
-        "  AND game_year = @season\n"
+        "WHERE events IS NOT NULL\n"
+        "  AND game_type='R' AND game_year = @season\n"
         "GROUP BY batter HAVING sample_size >= @min_n;"
     ),
 }
@@ -149,6 +169,7 @@ PITCHING_AGG_SQL: Final[dict[str, str]] = {
         "       COUNT(*) AS sample_size\n"
         "FROM `{table}`\n"
         "WHERE game_type='R' AND description = 'hit_into_play'\n"
+        "  AND bb_type IN ('popup','ground_ball','line_drive','fly_ball')\n"
         "  AND launch_speed IS NOT NULL\n"
         "  AND game_year = @season\n"
         "GROUP BY pitcher HAVING sample_size >= @min_n;"
