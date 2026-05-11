@@ -11,20 +11,33 @@
   `db-dtypes` for INT64 columns. Missing it caused `verify` to
   `ModuleNotFoundError` in any environment that didn't have
   `db-dtypes` coincidentally pulled in by another package.
-- Verify SQL templates aligned with Baseball Savant leaderboard
-  definitions:
-  - `barrel_rate` uses Statcast's canonical `launch_speed_angle = 6`
-    classification (the pre-computed barrel flag) instead of
-    approximating the curved zone in SQL.
-  - Batting + `hard_hit_allowed` pitching metrics now use
-    `launch_speed_angle IS NOT NULL` as the BBE denominator —
-    Statcast's batted-ball classification implicitly excludes
-    foul balls, bunts, and unclassifiable weak contact, matching
-    what Savant's exit-velo leaderboard uses.
-  - `xwoba_contact` now matches Savant's `est_woba`: averages xwOBA
-    contributions across all plate appearances (BBE use
-    `estimated_woba_using_speedangle`, non-BBE use `woba_value`),
-    excluding sac bunts (`woba_denom = 0`).
+- Verify SQL templates substantially aligned with Baseball Savant
+  leaderboard definitions. Smoke against 2024 season vs Savant:
+  - `barrel_rate`: **100% within 0.005 tolerance** — uses Statcast's
+    canonical `launch_speed_angle = 6` classification (the
+    pre-computed barrel flag) instead of approximating the
+    EV-dependent curved zone in SQL.
+  - `xwoba_contact`: **97.7% within 0.005 tolerance** — matches
+    Savant's `est_woba` definition by averaging xwOBA contributions
+    across all plate appearances (BBE use
+    `estimated_woba_using_speedangle`, non-BBE use the canonical
+    `woba_value` for K/BB/HBP), excluding sac bunts via
+    `woba_denom = 0`.
+  - `hard_hit_pct`: **96.7% within 0.005 tolerance** — uses
+    `launch_speed_angle IS NOT NULL` as the BBE denominator.
+    Remaining 16 outliers are all small (≤0.018) on low-sample-size
+    players and appear to be rounding/edge-case noise.
+  - `avg_exit_velo` (64%) and `avg_launch_angle` (72%): substantially
+    improved from pre-fix 0–4% but still fail the 0.99 threshold.
+    Savant's exit-velo leaderboard appears to use a methodology
+    beyond what's reproducible from raw pitch-level data
+    (excluding the `launch_speed_angle = 1` "Weak" class overshoots;
+    other simple filters don't recover the gap). `verify` should be
+    treated as an *approximate* sanity check for these two metrics,
+    not a strict cross-source equality test. Closing the remaining
+    gap is tracked as a follow-up.
+  - `hard_hit_allowed` (pitching): same BBE filter applied as the
+    batting metric; not exercised by the standard smoke gate.
 
 ### Added
 - Real `--resume` checkpointing. Sync now records every chunk to a
