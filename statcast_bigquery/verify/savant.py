@@ -49,6 +49,24 @@ PITCHING_TOLERANCES: Final[dict[str, float]] = {
     "hard_hit_allowed": 0.005,
 }
 
+# Per-metric Savant→ours scale factor. Savant exposes barrel_rate / hard_hit /
+# whiff as percentages (e.g. brl_percent=8.5 means 8.5%); our SQL returns
+# fractions (0.085). Multiply Savant by these scale factors to align units.
+# Velocity/angle/xwOBA metrics share the same numeric units across both — scale=1.
+BATTING_SAVANT_SCALE: Final[dict[str, float]] = {
+    "barrel_rate": 0.01,
+    "hard_hit_pct": 0.01,
+    "avg_exit_velo": 1.0,
+    "avg_launch_angle": 1.0,
+    "xwoba_contact": 1.0,
+}
+
+PITCHING_SAVANT_SCALE: Final[dict[str, float]] = {
+    "avg_release_speed": 1.0,
+    "whiff_rate": 0.01,
+    "hard_hit_allowed": 0.01,
+}
+
 
 # Per-metric BQ aggregation SQL templates. {table} is the fully-qualified statcast_pitches.
 # Each template returns columns: id (INT64), value (FLOAT64), sample_size (INT64).
@@ -186,7 +204,11 @@ class BaseballSavantBattingVerifier:
             savant_df = pb.statcast_batter_exitvelo_barrels(
                 self.season, minBBE=self.min_sample_size
             )
-        expected = {int(r["player_id"]): float(r[savant_field]) for _, r in savant_df.iterrows()}
+        scale = BATTING_SAVANT_SCALE[self.metric]
+        expected = {
+            int(r["player_id"]): float(r[savant_field]) * scale
+            for _, r in savant_df.iterrows()
+        }
         names = _lookup_batter_names(self.season)
 
         ours_with_n = _run_aggregation(
@@ -239,7 +261,11 @@ class BaseballSavantPitchingVerifier:
         savant_df = pb.statcast_pitcher_exitvelo_barrels(
             self.season, minBBE=self.min_sample_size
         )
-        expected = {int(r["player_id"]): float(r[savant_field]) for _, r in savant_df.iterrows()}
+        scale = PITCHING_SAVANT_SCALE[self.metric]
+        expected = {
+            int(r["player_id"]): float(r[savant_field]) * scale
+            for _, r in savant_df.iterrows()
+        }
         names = _lookup_pitcher_names(self.season)
 
         ours_with_n = _run_aggregation(
