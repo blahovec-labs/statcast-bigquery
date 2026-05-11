@@ -1,12 +1,7 @@
-"""Curated example queries — unit-tested for SQL parseability against fixture data.
+"""Curated example queries — unit-tested for BigQuery-dialect parseability via sqlglot.
 
 Each query uses the placeholder `{table}` for the fully qualified pitches table.
-When targeting BigQuery, wrap the substituted name in backticks as needed.
-
-Note: SQL is written to be portable across BigQuery and DuckDB (for test validation).
-BigQuery-specific functions (COUNTIF, APPROX_QUANTILES, SAFE_DIVIDE, DATE_SUB) are
-replaced with portable equivalents so the DuckDB EXPLAIN test passes. When running
-against BigQuery the semantics are identical.
+Substitute and wrap in backticks: `your-project.your_dataset.statcast_pitches`.
 """
 
 from __future__ import annotations
@@ -51,7 +46,7 @@ EXAMPLE_QUERIES: list[ExampleQuery] = [
             "       COUNT(*) AS bbe\n"
             "FROM {table}\n"
             "WHERE game_type='R' AND launch_speed IS NOT NULL\n"
-            "  AND game_year = EXTRACT(YEAR FROM CURRENT_DATE)\n"
+            "  AND game_year = EXTRACT(YEAR FROM CURRENT_DATE())\n"
             "GROUP BY batter\n"
             "HAVING bbe >= 100\n"
             "ORDER BY hard_hit_pct DESC\n"
@@ -67,10 +62,11 @@ EXAMPLE_QUERIES: list[ExampleQuery] = [
         sql=(
             "SELECT umpire,\n"
             "       AVG(IF(description = 'called_strike', 1.0, 0.0)) AS called_k_rate,\n"
-            "       COUNT(*) FILTER (WHERE description IN ('called_strike','ball')) AS sample\n"
+            "       COUNTIF(description IN ('called_strike','ball')) AS sample\n"
             "FROM {table}\n"
             "WHERE description IN ('called_strike','ball')\n"
-            "  AND game_date BETWEEN CURRENT_DATE - INTERVAL '30' DAY AND CURRENT_DATE\n"
+            "  AND game_date BETWEEN DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)\n"
+            "                    AND CURRENT_DATE()\n"
             "GROUP BY umpire\n"
             "HAVING sample >= 100\n"
             "ORDER BY called_k_rate DESC;"
@@ -154,7 +150,7 @@ EXAMPLE_QUERIES: list[ExampleQuery] = [
             "FROM {table}\n"
             "WHERE game_type='R'\n"
             "  AND launch_speed IS NOT NULL\n"
-            "  AND game_year = EXTRACT(YEAR FROM CURRENT_DATE)\n"
+            "  AND game_year = EXTRACT(YEAR FROM CURRENT_DATE())\n"
             "GROUP BY batter\n"
             "HAVING bbe >= 150\n"
             "ORDER BY xwoba_contact DESC\n"
@@ -256,8 +252,8 @@ EXAMPLE_QUERIES: list[ExampleQuery] = [
         sql=(
             "SELECT pitch_type,\n"
             "       AVG(release_spin_rate) AS avg_spin,\n"
-            "       PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY release_spin_rate) AS p50,\n"
-            "       PERCENTILE_CONT(0.90) WITHIN GROUP (ORDER BY release_spin_rate) AS p90,\n"
+            "       APPROX_QUANTILES(release_spin_rate, 100)[OFFSET(50)] AS p50,\n"
+            "       APPROX_QUANTILES(release_spin_rate, 100)[OFFSET(90)] AS p90,\n"
             "       COUNT(*) AS pitches\n"
             "FROM {table}\n"
             "WHERE release_spin_rate IS NOT NULL AND game_type='R'\n"
@@ -265,7 +261,10 @@ EXAMPLE_QUERIES: list[ExampleQuery] = [
         ),
         columns_used=["pitch_type", "release_spin_rate", "game_type"],
         result_shape="one row per pitch type",
-        notes=None,
+        notes=(
+            "Uses APPROX_QUANTILES (BigQuery's approximate-quantile aggregate). "
+            "Exact PERCENTILE_CONT in BQ is window-only."
+        ),
     ),
     ExampleQuery(
         title="Pitch usage % by count state",
