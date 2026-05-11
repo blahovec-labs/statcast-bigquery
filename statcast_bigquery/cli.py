@@ -14,6 +14,7 @@ from google.cloud import bigquery
 from statcast_bigquery._version import __version__
 from statcast_bigquery.client import StatcastClient
 from statcast_bigquery.docs.renderers import (
+    apply_data_dictionary,
     render_bq_descriptions,
     render_data_dictionary,
     render_dbt_yaml,
@@ -214,7 +215,6 @@ def cmd_docs(ns: argparse.Namespace) -> int:
             if not ns.dictionary_table:
                 log.error("--dictionary-table required with --apply")
                 return 2
-            from statcast_bigquery.docs.renderers import apply_data_dictionary
             client = bigquery.Client()
             n = apply_data_dictionary(
                 client=client,

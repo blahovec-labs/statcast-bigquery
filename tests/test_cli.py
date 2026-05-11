@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from statcast_bigquery.cli import build_parser, main
+from statcast_bigquery.cli import build_parser, cmd_docs, main
 
 
 def test_parser_accepts_sync_args():
@@ -57,8 +57,8 @@ def test_main_version_flag(capsys):
     assert exc.value.code == 0
 
 
-def test_docs_dictionary_apply_requires_dictionary_table():
-    """--apply without --dictionary-table should error out."""
+def test_docs_dictionary_apply_requires_dictionary_table(monkeypatch):
+    """--apply without --dictionary-table should error out with rc=2."""
     parser = build_parser()
     ns = parser.parse_args([
         "docs", "--format", "dictionary",
@@ -68,5 +68,8 @@ def test_docs_dictionary_apply_requires_dictionary_table():
     ])
     assert ns.apply is True
     assert ns.dictionary_table is None
-    # cmd_docs is the function that validates and returns rc=2 in this case
-    # (covered by integration; here we just assert parser shape)
+    # Ensure cmd_docs short-circuits before touching BigQuery
+    monkeypatch.setattr("statcast_bigquery.cli.bigquery.Client",
+                        lambda: pytest.fail("bigquery.Client must not be called"))
+    rc = cmd_docs(ns)
+    assert rc == 2

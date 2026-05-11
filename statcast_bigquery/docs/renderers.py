@@ -168,7 +168,8 @@ def apply_data_dictionary(
     def _str(s: str | None) -> str:
         if s is None:
             return "NULL"
-        # Use BQ raw-string-style escaping by doubling single quotes
+        # BQ Standard SQL accepts backslash-escaped string literals.
+        # Escape backslashes first, then single quotes, to avoid double-processing.
         return "'" + s.replace("\\", "\\\\").replace("'", "\\'") + "'"
 
     def _tags(t: list[str]) -> str:

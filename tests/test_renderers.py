@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from unittest.mock import MagicMock, call  # noqa: F401
+from unittest.mock import MagicMock
 
 from google.cloud import bigquery
 
