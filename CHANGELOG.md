@@ -1,5 +1,36 @@
 # Changelog
 
+## [0.3.1] - 2026-05-11
+
+### Fixed
+- Savant verify: scale Savant percentage metrics (`brl_percent`,
+  `ev95percent`) to fractions before comparing to our SQL aggregations.
+  Closes the 100x mismatch that caused the post-0.2.0 verify FAIL.
+
+### Added
+- Real `--resume` checkpointing. Sync now records every chunk to a
+  `_statcast_ingest_runs` table colocated with the pitches table
+  (underscore-prefixed so BigQuery console hides it). `--resume` skips
+  chunks already recorded as `success` or `empty`. Override location
+  with `--runs-table project.dataset.table`.
+- Real `--chunk-by month` iterator. Previously `month` was an argparse
+  choice but fell through to single-range behavior. Now emits one chunk
+  per calendar month, clipped to `[start, end]`.
+- `docs --format dictionary --apply --dictionary-table proj.ds.tbl`
+  writes data-dictionary rows directly into a BQ table (DELETE rows
+  for `(dataset, table)`, INSERT new ones, atomic via
+  `BEGIN TRANSACTION` ... `COMMIT TRANSACTION`). Mirrors `bq-apply`.
+- Example queries rewritten in idiomatic BigQuery (`COUNTIF`,
+  `SAFE_DIVIDE`, `DATE_SUB`, `APPROX_QUANTILES`). Test gate swapped
+  from DuckDB EXPLAIN to sqlglot BigQuery-dialect parse — drops the
+  ~30MB native duckdb wheel from dev deps in favor of pure-Python
+  sqlglot. Adds a per-query check that every name in `columns_used`
+  exists in `PITCHES_SCHEMA`.
+
+### Changed
+- Test fixture in `tests/test_renderers.py` no longer references the
+  author's specific dataset name; uses generic `"my_dataset"`.
+
 ## [0.3.0] - 2026-05-10
 
 ### Added
