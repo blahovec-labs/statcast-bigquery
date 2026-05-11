@@ -10,7 +10,7 @@ from typing import Any, Protocol
 class Comparison:
     """One row of comparison output: our value vs the external source's value."""
 
-    entity_id: int
+    entity_id: int | str
     entity_name: str
     ours: float
     expected: float

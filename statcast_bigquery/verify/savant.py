@@ -194,13 +194,13 @@ def _run_aggregation(
             for _, r in rows.iterrows()}
 
 
-def _lookup_batter_names(season: int) -> dict[int, str]:
+def _lookup_batter_names(season: int) -> dict[int | str, str]:
     """Best-effort batter id -> 'Last, First' name map from Savant leaderboard."""
     df = pb.statcast_batter_exitvelo_barrels(season, minBBE=1)
     return dict(zip(df["player_id"].astype(int), df["last_name, first_name"]))
 
 
-def _lookup_pitcher_names(season: int) -> dict[int, str]:
+def _lookup_pitcher_names(season: int) -> dict[int | str, str]:
     df = pb.statcast_pitcher_exitvelo_barrels(season, minBBE=1)
     return dict(zip(df["player_id"].astype(int), df["last_name, first_name"]))
 
@@ -240,18 +240,18 @@ class BaseballSavantBattingVerifier:
                 self.season, minBBE=self.min_sample_size
             )
         scale = BATTING_SAVANT_SCALE[self.metric]
-        expected = {
+        expected: dict[int | str, float] = {
             int(r["player_id"]): float(r[savant_field]) * scale
             for _, r in savant_df.iterrows()
         }
-        names = _lookup_batter_names(self.season)
+        names: dict[int | str, str] = _lookup_batter_names(self.season)
 
         ours_with_n = _run_aggregation(
             self.client, BATTING_AGG_SQL[self.metric],
             self.table, self.season, self.min_sample_size,
         )
-        ours = {k: v[0] for k, v in ours_with_n.items()}
-        sample_sizes = {k: v[1] for k, v in ours_with_n.items()}
+        ours: dict[int | str, float] = {k: v[0] for k, v in ours_with_n.items()}
+        sample_sizes: dict[int | str, int] = {k: v[1] for k, v in ours_with_n.items()}
 
         deltas = compare_series(
             ours=ours, expected=expected,
@@ -297,18 +297,18 @@ class BaseballSavantPitchingVerifier:
             self.season, minBBE=self.min_sample_size
         )
         scale = PITCHING_SAVANT_SCALE[self.metric]
-        expected = {
+        expected: dict[int | str, float] = {
             int(r["player_id"]): float(r[savant_field]) * scale
             for _, r in savant_df.iterrows()
         }
-        names = _lookup_pitcher_names(self.season)
+        names: dict[int | str, str] = _lookup_pitcher_names(self.season)
 
         ours_with_n = _run_aggregation(
             self.client, PITCHING_AGG_SQL[self.metric],
             self.table, self.season, self.min_sample_size,
         )
-        ours = {k: v[0] for k, v in ours_with_n.items()}
-        sample_sizes = {k: v[1] for k, v in ours_with_n.items()}
+        ours: dict[int | str, float] = {k: v[0] for k, v in ours_with_n.items()}
+        sample_sizes: dict[int | str, int] = {k: v[1] for k, v in ours_with_n.items()}
 
         deltas = compare_series(
             ours=ours, expected=expected,

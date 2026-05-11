@@ -7,10 +7,10 @@ from statcast_bigquery.verify.base import Comparison
 
 def compare_series(
     *,
-    ours: dict[int, float],
-    expected: dict[int, float],
-    sample_sizes: dict[int, int],
-    entity_names: dict[int, str],
+    ours: dict[int | str, float],
+    expected: dict[int | str, float],
+    sample_sizes: dict[int | str, int],
+    entity_names: dict[int | str, str],
     tolerance: float,
 ) -> list[Comparison]:
     """Inner-join `ours` and `expected` on entity_id; produce one Comparison per shared id."""
