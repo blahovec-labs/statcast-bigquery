@@ -25,14 +25,14 @@ def test_render_bq_descriptions_returns_schema_field_list():
 
 
 def test_render_data_dictionary_outputs_expected_shape():
-    rows = render_data_dictionary(dataset="mlb_v2_analytics", table="statcast_pitches")
+    rows = render_data_dictionary(dataset="my_dataset", table="statcast_pitches")
     assert isinstance(rows, list)
     assert len(rows) == len(PITCHES_SCHEMA)
     for r in rows:
         assert {"dataset", "table", "column", "dtype",
                 "description", "business_definition", "tags",
                 "source_system", "upstream_lineage_json"} <= r.keys()
-        assert r["dataset"] == "mlb_v2_analytics"
+        assert r["dataset"] == "my_dataset"
         assert r["table"] == "statcast_pitches"
         assert r["source_system"] == "baseball_savant"
 
