@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 import pandas as pd
 import pytest
 
+import statcast_bigquery.verify.savant as savant_mod
 from statcast_bigquery.verify.savant import (
     BATTING_METRIC_TO_SAVANT_FIELD,
     BATTING_TOLERANCES,
@@ -131,17 +132,13 @@ def test_pitching_verifier_run(savant_pitcher: pd.DataFrame):
 def test_batting_barrel_rate_scales_savant_percent_to_fraction(monkeypatch):
     """Savant returns brl_percent=8.5 (percent); our SQL returns 0.085 (fraction).
     Verifier must scale Savant down by /100 so they match within tolerance."""
-    import pandas as pd
-    from statcast_bigquery.verify.savant import BaseballSavantBattingVerifier
-    import statcast_bigquery.verify.savant as savant_mod
-
     fake_savant = pd.DataFrame([
         {"player_id": 100, "brl_percent": 8.5, "last_name, first_name": "Doe, John"},
     ])
     monkeypatch.setattr(savant_mod.pb, "statcast_batter_exitvelo_barrels",
-                        lambda season, minBBE: fake_savant)
+                        lambda season, **kwargs: fake_savant)
     monkeypatch.setattr(savant_mod.pb, "statcast_batter_expected_stats",
-                        lambda season, minPA: fake_savant)
+                        lambda season, **kwargs: fake_savant)
     monkeypatch.setattr(savant_mod, "_run_aggregation",
                         lambda *a, **kw: {100: (0.085, 100)})  # our SQL returns fraction
     monkeypatch.setattr(savant_mod, "_lookup_batter_names",
@@ -157,15 +154,13 @@ def test_batting_barrel_rate_scales_savant_percent_to_fraction(monkeypatch):
 
 
 def test_pitching_hard_hit_allowed_scales_savant_percent(monkeypatch):
-    import pandas as pd
-    from statcast_bigquery.verify.savant import BaseballSavantPitchingVerifier
-    import statcast_bigquery.verify.savant as savant_mod
-
+    """Savant returns ev95percent=35.0 (percent); our SQL returns 0.35 (fraction).
+    Verifier must scale Savant down by /100 so they match within tolerance."""
     fake_savant = pd.DataFrame([
         {"player_id": 200, "ev95percent": 35.0, "last_name, first_name": "Doe, Jane"},
     ])
     monkeypatch.setattr(savant_mod.pb, "statcast_pitcher_exitvelo_barrels",
-                        lambda season, minBBE: fake_savant)
+                        lambda season, **kwargs: fake_savant)
     monkeypatch.setattr(savant_mod, "_run_aggregation",
                         lambda *a, **kw: {200: (0.35, 200)})
     monkeypatch.setattr(savant_mod, "_lookup_pitcher_names",
@@ -175,20 +170,17 @@ def test_pitching_hard_hit_allowed_scales_savant_percent(monkeypatch):
         client=None, table="p.d.t", season=2024, metric="hard_hit_allowed"
     )
     result = v.run()
+    assert result.total_compared == 1
     assert result.within_tolerance_count == 1
 
 
 def test_batting_avg_exit_velo_does_not_scale(monkeypatch):
     """Non-percentage metrics (avg_hit_speed) must NOT be scaled."""
-    import pandas as pd
-    from statcast_bigquery.verify.savant import BaseballSavantBattingVerifier
-    import statcast_bigquery.verify.savant as savant_mod
-
     fake_savant = pd.DataFrame([
         {"player_id": 300, "avg_hit_speed": 89.5, "last_name, first_name": "Doe, J"},
     ])
     monkeypatch.setattr(savant_mod.pb, "statcast_batter_exitvelo_barrels",
-                        lambda season, minBBE: fake_savant)
+                        lambda season, **kwargs: fake_savant)
     monkeypatch.setattr(savant_mod, "_run_aggregation",
                         lambda *a, **kw: {300: (89.5, 100)})
     monkeypatch.setattr(savant_mod, "_lookup_batter_names",
