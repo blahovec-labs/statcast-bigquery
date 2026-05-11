@@ -6,6 +6,11 @@
 - Savant verify: scale Savant percentage metrics (`brl_percent`,
   `ev95percent`) to fractions before comparing to our SQL aggregations.
   Closes the 100x mismatch that caused the post-0.2.0 verify FAIL.
+- Declare `db-dtypes` as a runtime dependency. `verify` calls
+  `bigquery.Client.query_and_wait(...).to_dataframe()` which requires
+  `db-dtypes` for INT64 columns. Missing it caused `verify` to
+  `ModuleNotFoundError` in any environment that didn't have
+  `db-dtypes` coincidentally pulled in by another package.
 
 ### Added
 - Real `--resume` checkpointing. Sync now records every chunk to a

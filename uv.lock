@@ -476,6 +476,21 @@ wheels = [
 ]
 
 [[package]]
+name = "db-dtypes"
+version = "1.6.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+    { name = "packaging" },
+    { name = "pandas" },
+    { name = "pyarrow" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/dd/35/3bedb365a0c42b4f65a8cfb8c4dc392a9f93e22035b862117ef1b2a0d80b/db_dtypes-1.6.0.tar.gz", hash = "sha256:4ba87b15cc972a7cc0aed2b7483e0823c7765eca88128453f52c88c5e0f4ae46", size = 35966 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c4/02/56cf9e3f231ee6bfab73ead0f08077661c0decaa8e6b7414137b7c3a5d27/db_dtypes-1.6.0-py3-none-any.whl", hash = "sha256:03f0ff5798fa5e407f07e84de2d619cbc363b8dcc40104825a85519793ffee8d", size = 18535 },
+]
+
+[[package]]
 name = "fonttools"
 version = "4.62.1"
 source = { registry = "https://pypi.org/simple" }
@@ -1659,6 +1674,7 @@ name = "statcast-bigquery"
 version = "0.3.1"
 source = { editable = "." }
 dependencies = [
+    { name = "db-dtypes" },
     { name = "google-cloud-bigquery" },
     { name = "pandas" },
     { name = "pyarrow" },
@@ -1678,6 +1694,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "build", marker = "extra == 'dev'", specifier = ">=1.2.0" },
+    { name = "db-dtypes", specifier = ">=1.0,<2.0" },
     { name = "google-cloud-bigquery", specifier = ">=3.20,<4.0" },
     { name = "pandas", specifier = ">=2.0,<3.0" },
     { name = "pyarrow", specifier = ">=15.0,<19.0" },
