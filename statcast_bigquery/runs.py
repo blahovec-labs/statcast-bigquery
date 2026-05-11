@@ -106,6 +106,10 @@ class RunsTable:
         chunk_kind: str,
         error: str,
     ) -> None:
+        log.warning(
+            "chunk %s..%s failed: %s",
+            chunk_start, chunk_end, error,
+        )
         self._record(ref, chunk_start, chunk_end, chunk_kind,
                      status="failed", rows_written=0)
 
