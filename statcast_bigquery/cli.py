@@ -32,6 +32,10 @@ from statcast_bigquery.verify.savant import (
     BaseballSavantBattingVerifier,
     BaseballSavantPitchingVerifier,
 )
+from statcast_bigquery.verify.standings import (
+    STANDINGS_AGG_SQL,
+    BaseballStandingsVerifier,
+)
 from statcast_bigquery.writer import BigQueryWriter, TableRef
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(message)s")
@@ -39,6 +43,7 @@ log = logging.getLogger("statcast-bigquery")
 
 ALL_BATTING_METRICS = list(BATTING_METRIC_TO_SAVANT_FIELD)
 ALL_PITCHING_METRICS = list(PITCHING_METRIC_TO_SAVANT_FIELD)
+ALL_STANDINGS_METRICS = list(STANDINGS_AGG_SQL)
 DOC_FORMATS = ["bq-apply", "llm", "dictionary", "markdown", "dbt"]
 
 
@@ -103,9 +108,10 @@ def build_parser() -> argparse.ArgumentParser:
     p_v = sub.add_parser("verify", help="Compare aggregations to external sources")
     p_v.add_argument("--source", default="baseball-savant", choices=["baseball-savant"])
     p_v.add_argument("--aggregation", required=True,
-                     choices=["player-season", "pitcher-season"])
+                     choices=["player-season", "pitcher-season", "team-season"])
     p_v.add_argument("--metric", required=True,
-                     choices=[*ALL_BATTING_METRICS, *ALL_PITCHING_METRICS, "all"])
+                     choices=[*ALL_BATTING_METRICS, *ALL_PITCHING_METRICS,
+                              *ALL_STANDINGS_METRICS, "all"])
     p_v.add_argument("--season", required=True, type=int)
     p_v.add_argument("--table", required=True)
     p_v.add_argument("--tolerance", type=float, default=None)
@@ -297,8 +303,15 @@ def cmd_docs(ns: argparse.Namespace) -> int:
 
 def cmd_verify(ns: argparse.Namespace) -> int:
     client = bigquery.Client()
-    metrics = ([*ALL_BATTING_METRICS] if ns.aggregation == "player-season"
-               else [*ALL_PITCHING_METRICS]) if ns.metric == "all" else [ns.metric]
+    if ns.metric == "all":
+        if ns.aggregation == "player-season":
+            metrics = [*ALL_BATTING_METRICS]
+        elif ns.aggregation == "pitcher-season":
+            metrics = [*ALL_PITCHING_METRICS]
+        else:  # team-season
+            metrics = [*ALL_STANDINGS_METRICS]
+    else:
+        metrics = [ns.metric]
 
     overall_pass = True
     all_results: list[dict] = []
@@ -308,10 +321,19 @@ def cmd_verify(ns: argparse.Namespace) -> int:
                 client=client, table=ns.table, season=ns.season, metric=m,
                 min_sample_size=ns.min_sample_size, tolerance=ns.tolerance,
             )
-        else:
+        elif ns.aggregation == "pitcher-season":
             v = BaseballSavantPitchingVerifier(
                 client=client, table=ns.table, season=ns.season, metric=m,
                 min_sample_size=ns.min_sample_size, tolerance=ns.tolerance,
+            )
+        else:  # team-season
+            # The CLI default min_sample_size=50 is meaningful for BBE-per-player
+            # but not for teams (each plays ~162 games). Use 1 (no floor) when the
+            # user accepts the CLI default.
+            team_min = 1 if ns.min_sample_size == 50 else ns.min_sample_size
+            v = BaseballStandingsVerifier(
+                client=client, table=ns.table, season=ns.season, metric=m,
+                min_sample_size=team_min, tolerance=ns.tolerance,
             )
         result = v.run()
         print(result.summary())

@@ -175,3 +175,42 @@ def test_cmd_sync_resume_skips_completed_chunks(monkeypatch, caplog):
     assert "skipping 1 completed chunks" in caplog.text
     # Statcast fetch should be called once (for 2025), not twice
     assert fake_sc.fetch.call_count == 1
+
+
+def test_verify_team_season_parser_accepts_args():
+    """--aggregation team-season with wins metric parses cleanly."""
+    parser = build_parser()
+    ns = parser.parse_args([
+        "verify",
+        "--aggregation", "team-season",
+        "--metric", "wins",
+        "--season", "2024",
+        "--table", "p.d.statcast_pitches",
+    ])
+    assert ns.aggregation == "team-season"
+    assert ns.metric == "wins"
+
+
+def test_verify_team_season_metric_all_accepted():
+    """--metric all is accepted with team-season aggregation."""
+    parser = build_parser()
+    ns = parser.parse_args([
+        "verify",
+        "--aggregation", "team-season",
+        "--metric", "all",
+        "--season", "2024",
+        "--table", "p.d.statcast_pitches",
+    ])
+    assert ns.metric == "all"
+
+
+def test_verify_team_season_run_diff_metric_accepted():
+    parser = build_parser()
+    ns = parser.parse_args([
+        "verify",
+        "--aggregation", "team-season",
+        "--metric", "run_diff",
+        "--season", "2024",
+        "--table", "p.d.statcast_pitches",
+    ])
+    assert ns.metric == "run_diff"
