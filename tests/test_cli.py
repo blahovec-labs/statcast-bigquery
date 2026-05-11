@@ -2,9 +2,15 @@
 
 from __future__ import annotations
 
+import argparse
+import logging
+from datetime import date
+from unittest.mock import MagicMock
+
+import pandas as pd
 import pytest
 
-from statcast_bigquery.cli import _iter_chunks, build_parser, cmd_docs, main
+from statcast_bigquery.cli import _iter_chunks, build_parser, cmd_docs, cmd_sync, main
 
 
 def test_parser_accepts_sync_args():
@@ -139,3 +145,33 @@ def test_iter_chunks_single_day():
     assert _iter_chunks("2024-07-04", "2024-07-04", "month") == [
         ("2024-07-04", "2024-07-04"),
     ]
+
+
+def test_cmd_sync_resume_skips_completed_chunks(monkeypatch, caplog):
+    """--resume should call completed_chunks() and filter the chunk list."""
+    fake_bq = MagicMock()
+    fake_writer = MagicMock()
+    fake_writer.write.return_value = 0
+    fake_runs = MagicMock()
+    fake_runs.completed_chunks.return_value = {
+        (date(2024, 1, 1), date(2024, 12, 31)),
+    }
+    fake_sc = MagicMock()
+    fake_sc.fetch.return_value = pd.DataFrame()
+
+    monkeypatch.setattr("statcast_bigquery.cli.bigquery.Client", lambda: fake_bq)
+    monkeypatch.setattr("statcast_bigquery.cli.BigQueryWriter", lambda client: fake_writer)
+    monkeypatch.setattr("statcast_bigquery.cli.StatcastClient", lambda: fake_sc)
+    monkeypatch.setattr("statcast_bigquery.runs.RunsTable", lambda client: fake_runs)
+
+    ns = argparse.Namespace(
+        command="sync", start="2024-01-01", end="2025-12-31",
+        table="p.d.statcast_pitches", umpires_table=None, skip_umpires=True,
+        games_table=None, skip_games=True, runs_table=None,
+        chunk_by="year", resume=True, dry_run=False,
+    )
+    caplog.set_level(logging.INFO)
+    cmd_sync(ns)
+    assert "skipping 1 completed chunks" in caplog.text
+    # Statcast fetch should be called once (for 2025), not twice
+    assert fake_sc.fetch.call_count == 1

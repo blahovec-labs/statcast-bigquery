@@ -83,7 +83,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_sync.add_argument("--chunk-by", default="year", choices=["year", "month", "range"])
     p_sync.add_argument("--resume", action="store_true",
-                        help="Skip year-chunks already recorded in _statcast_ingest_runs")
+        help=("Skip chunks already recorded as success/empty in --runs-table. "
+              "Note: only chunks matching exactly on (chunk_start, chunk_end) are skipped — "
+              "if you change --chunk-by between runs, no skip occurs."))
     p_sync.add_argument("--dry-run", action="store_true")
 
     # docs
@@ -182,6 +184,16 @@ def cmd_sync(ns: argparse.Namespace) -> int:
         runs.create_table_if_missing(runs_ref)
 
     chunks = _iter_chunks(ns.start, ns.end, ns.chunk_by)
+    if ns.resume and not ns.dry_run:
+        completed = runs.completed_chunks(ref=runs_ref)
+        before = len(chunks)
+        chunks = [
+            (cs, ce) for cs, ce in chunks
+            if (date.fromisoformat(cs), date.fromisoformat(ce)) not in completed
+        ]
+        skipped = before - len(chunks)
+        if skipped:
+            log.info("--resume: skipping %d completed chunks", skipped)
     for cs, ce in chunks:
         log.info("chunk %s -> %s", cs, ce)
         if ns.dry_run:
