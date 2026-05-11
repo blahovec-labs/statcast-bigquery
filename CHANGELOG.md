@@ -20,10 +20,7 @@
     `launch_speed_angle IS NOT NULL` as the BBE denominator —
     Statcast's batted-ball classification implicitly excludes
     foul balls, bunts, and unclassifiable weak contact, matching
-    what Savant's exit-velo leaderboard uses. `avg_exit_velo` and
-    `avg_launch_angle` additionally exclude the Weak class
-    (`launch_speed_angle = 1`, ~36 mph dribblers and swinging
-    bunts) — Savant filters these out of its leaderboard means.
+    what Savant's exit-velo leaderboard uses.
   - `xwoba_contact` now matches Savant's `est_woba`: averages xwOBA
     contributions across all plate appearances (BBE use
     `estimated_woba_using_speedangle`, non-BBE use `woba_value`),
