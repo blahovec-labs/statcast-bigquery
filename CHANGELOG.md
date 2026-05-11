@@ -16,9 +16,11 @@
   - `barrel_rate` uses Statcast's canonical `launch_speed_angle = 6`
     classification (the pre-computed barrel flag) instead of
     approximating the curved zone in SQL.
-  - Batting + `hard_hit_allowed` pitching metrics now filter to BBE
-    (`description = 'hit_into_play'`) and exclude bunts via
-    `bb_type IN ('popup','ground_ball','line_drive','fly_ball')`.
+  - Batting + `hard_hit_allowed` pitching metrics now use
+    `launch_speed_angle IS NOT NULL` as the BBE denominator —
+    Statcast's batted-ball classification implicitly excludes
+    foul balls, bunts, and unclassifiable weak contact, matching
+    what Savant's exit-velo leaderboard uses.
   - `xwoba_contact` now matches Savant's `est_woba`: averages xwOBA
     contributions across all plate appearances (BBE use
     `estimated_woba_using_speedangle`, non-BBE use `woba_value`),
