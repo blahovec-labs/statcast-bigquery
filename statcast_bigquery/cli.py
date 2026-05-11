@@ -71,6 +71,13 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     p_sync.add_argument(
+        "--runs-table",
+        help=(
+            "project.dataset.table for the sync run log. "
+            "Defaults to <pitches-dataset>._statcast_ingest_runs."
+        ),
+    )
+    p_sync.add_argument(
         "--skip-games", action="store_true",
         help="Skip games schedule ingestion.",
     )
@@ -157,26 +164,46 @@ def cmd_sync(ns: argparse.Namespace) -> int:
         games_client = GameClient()
         games_writer = GameWriter(client=client)
 
+    from statcast_bigquery.runs import RunsTable, RunsTableRef
+    runs_table = getattr(ns, "runs_table", None) or \
+        f"{ref.project}.{ref.dataset}._statcast_ingest_runs"
+    runs_ref = RunsTableRef.parse(runs_table)
+    runs = RunsTable(client=client)
+
     if not ns.dry_run:
         writer.create_table_if_missing(ref)
         if umpire_writer is not None and umpire_ref is not None:
             umpire_writer.create_table_if_missing(umpire_ref)
         if games_writer is not None and games_ref is not None:
             games_writer.create_table_if_missing(games_ref)
+        runs.create_table_if_missing(runs_ref)
 
     chunks = _iter_chunks(ns.start, ns.end, ns.chunk_by)
     for cs, ce in chunks:
         log.info("chunk %s -> %s", cs, ce)
         if ns.dry_run:
             continue
-        df = sc.fetch(cs, ce)
-        writer.write(ref, df, cs, ce)
+        cs_d = datetime.strptime(cs, "%Y-%m-%d").date()
+        ce_d = datetime.strptime(ce, "%Y-%m-%d").date()
+        try:
+            df = sc.fetch(cs, ce)
+            n = writer.write(ref, df, cs, ce)
+        except Exception as e:
+            runs.record_failed(ref=runs_ref, chunk_start=cs_d, chunk_end=ce_d,
+                               chunk_kind=ns.chunk_by, error=str(e))
+            raise
+
+        if df.empty:
+            runs.record_empty(ref=runs_ref, chunk_start=cs_d, chunk_end=ce_d,
+                              chunk_kind=ns.chunk_by)
+            log.info("no pitches for chunk %s -> %s; skip umpire fetch", cs, ce)
+            continue
+
+        runs.record_success(ref=runs_ref, chunk_start=cs_d, chunk_end=ce_d,
+                            chunk_kind=ns.chunk_by, rows_written=n)
 
         if (sync_umpires and umpire_client is not None
                 and umpire_writer is not None and umpire_ref is not None):
-            if df.empty:
-                log.info("no pitches for chunk %s -> %s; skip umpire fetch", cs, ce)
-                continue
             games = (
                 df[["game_pk", "game_date"]]
                 .drop_duplicates()
