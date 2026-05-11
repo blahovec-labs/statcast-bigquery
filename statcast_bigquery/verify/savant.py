@@ -73,11 +73,15 @@ PITCHING_SAVANT_SCALE: Final[dict[str, float]] = {
 BATTING_AGG_SQL: Final[dict[str, str]] = {
     "barrel_rate": (
         "SELECT batter AS id,\n"
-        "       AVG(IF(launch_speed >= 98 AND launch_angle BETWEEN 8 AND 50, 1.0, 0.0))\n"
-        "         AS value,\n"
+        "       AVG(IF(\n"
+        "         launch_speed >= 98\n"
+        "         AND launch_angle BETWEEN GREATEST(8, 26 - (launch_speed - 98))\n"
+        "                              AND LEAST(50, 30 + (launch_speed - 98)),\n"
+        "         1.0, 0.0)) AS value,\n"
         "       COUNT(*) AS sample_size\n"
         "FROM `{table}`\n"
-        "WHERE game_type='R' AND launch_speed IS NOT NULL\n"
+        "WHERE game_type='R' AND description = 'hit_into_play'\n"
+        "  AND launch_speed IS NOT NULL\n"
         "  AND game_year = @season\n"
         "GROUP BY batter\n"
         "HAVING sample_size >= @min_n;"
@@ -87,24 +91,35 @@ BATTING_AGG_SQL: Final[dict[str, str]] = {
         "       AVG(IF(launch_speed >= 95, 1.0, 0.0)) AS value,\n"
         "       COUNT(*) AS sample_size\n"
         "FROM `{table}`\n"
-        "WHERE game_type='R' AND launch_speed IS NOT NULL AND game_year = @season\n"
+        "WHERE game_type='R' AND description = 'hit_into_play'\n"
+        "  AND launch_speed IS NOT NULL\n"
+        "  AND game_year = @season\n"
         "GROUP BY batter HAVING sample_size >= @min_n;"
     ),
     "avg_exit_velo": (
         "SELECT batter AS id, AVG(launch_speed) AS value, COUNT(*) AS sample_size\n"
-        "FROM `{table}` WHERE game_type='R' AND launch_speed IS NOT NULL\n"
-        "  AND game_year = @season GROUP BY batter HAVING sample_size >= @min_n;"
+        "FROM `{table}`\n"
+        "WHERE game_type='R' AND description = 'hit_into_play'\n"
+        "  AND launch_speed IS NOT NULL\n"
+        "  AND game_year = @season\n"
+        "GROUP BY batter HAVING sample_size >= @min_n;"
     ),
     "avg_launch_angle": (
         "SELECT batter AS id, AVG(launch_angle) AS value, COUNT(*) AS sample_size\n"
-        "FROM `{table}` WHERE game_type='R' AND launch_angle IS NOT NULL\n"
-        "  AND game_year = @season GROUP BY batter HAVING sample_size >= @min_n;"
+        "FROM `{table}`\n"
+        "WHERE game_type='R' AND description = 'hit_into_play'\n"
+        "  AND launch_angle IS NOT NULL\n"
+        "  AND game_year = @season\n"
+        "GROUP BY batter HAVING sample_size >= @min_n;"
     ),
     "xwoba_contact": (
         "SELECT batter AS id, AVG(estimated_woba_using_speedangle) AS value,\n"
         "       COUNT(*) AS sample_size\n"
-        "FROM `{table}` WHERE game_type='R' AND launch_speed IS NOT NULL\n"
-        "  AND game_year = @season GROUP BY batter HAVING sample_size >= @min_n;"
+        "FROM `{table}`\n"
+        "WHERE game_type='R' AND description = 'hit_into_play'\n"
+        "  AND launch_speed IS NOT NULL\n"
+        "  AND game_year = @season\n"
+        "GROUP BY batter HAVING sample_size >= @min_n;"
     ),
 }
 
@@ -132,8 +147,11 @@ PITCHING_AGG_SQL: Final[dict[str, str]] = {
         "SELECT pitcher AS id,\n"
         "       AVG(IF(launch_speed >= 95, 1.0, 0.0)) AS value,\n"
         "       COUNT(*) AS sample_size\n"
-        "FROM `{table}` WHERE game_type='R' AND launch_speed IS NOT NULL\n"
-        "  AND game_year = @season GROUP BY pitcher HAVING sample_size >= @min_n;"
+        "FROM `{table}`\n"
+        "WHERE game_type='R' AND description = 'hit_into_play'\n"
+        "  AND launch_speed IS NOT NULL\n"
+        "  AND game_year = @season\n"
+        "GROUP BY pitcher HAVING sample_size >= @min_n;"
     ),
 }
 

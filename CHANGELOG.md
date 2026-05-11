@@ -11,6 +11,14 @@
   `db-dtypes` for INT64 columns. Missing it caused `verify` to
   `ModuleNotFoundError` in any environment that didn't have
   `db-dtypes` coincidentally pulled in by another package.
+- Verify SQL templates aligned with Baseball Savant leaderboard
+  definitions: batting + `hard_hit_allowed` pitching metrics now
+  filter to BBE (`description = 'hit_into_play'`) rather than
+  `launch_speed IS NOT NULL` (which counted foul balls in the
+  denominator). `barrel_rate` now uses Savant's EV-dependent
+  curved barrel zone (LA window of [26, 30] at 98 mph, widening
+  by 1°/mph on each side, clipped to [8, 50]) instead of the
+  fixed [8, 50] rectangle approximation.
 
 ### Added
 - Real `--resume` checkpointing. Sync now records every chunk to a
