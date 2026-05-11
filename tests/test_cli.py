@@ -75,6 +75,27 @@ def test_docs_dictionary_apply_requires_dictionary_table(monkeypatch):
     assert rc == 2
 
 
+def test_sync_parser_accepts_runs_table_flag():
+    """--runs-table override flows through to ns.runs_table."""
+    parser = build_parser()
+    ns = parser.parse_args([
+        "sync", "--start", "2024-04-01", "--end", "2024-10-31",
+        "--table", "p.d.statcast_pitches",
+        "--runs-table", "p.d.custom_runs",
+    ])
+    assert ns.runs_table == "p.d.custom_runs"
+
+
+def test_sync_parser_runs_table_defaults_to_none():
+    """Without --runs-table, ns.runs_table is None (cmd_sync substitutes the default)."""
+    parser = build_parser()
+    ns = parser.parse_args([
+        "sync", "--start", "2024-04-01", "--end", "2024-10-31",
+        "--table", "p.d.statcast_pitches",
+    ])
+    assert ns.runs_table is None
+
+
 def test_iter_chunks_year_clips_to_year_end():
     chunks = _iter_chunks("2024-06-15", "2026-03-10", "year")
     assert chunks == [

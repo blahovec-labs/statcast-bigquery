@@ -164,6 +164,9 @@ def cmd_sync(ns: argparse.Namespace) -> int:
         games_client = GameClient()
         games_writer = GameWriter(client=client)
 
+    # Deferred import: keeps Task 7's test mock path stable (monkeypatches
+    # statcast_bigquery.runs.RunsTable, which only works if RunsTable is
+    # bound at call-time, not at module-load-time).
     from statcast_bigquery.runs import RunsTable, RunsTableRef
     runs_table = getattr(ns, "runs_table", None) or \
         f"{ref.project}.{ref.dataset}._statcast_ingest_runs"
@@ -183,35 +186,36 @@ def cmd_sync(ns: argparse.Namespace) -> int:
         log.info("chunk %s -> %s", cs, ce)
         if ns.dry_run:
             continue
-        cs_d = datetime.strptime(cs, "%Y-%m-%d").date()
-        ce_d = datetime.strptime(ce, "%Y-%m-%d").date()
+        cs_d = date.fromisoformat(cs)
+        ce_d = date.fromisoformat(ce)
         try:
             df = sc.fetch(cs, ce)
             n = writer.write(ref, df, cs, ce)
+
+            if df.empty:
+                runs.record_empty(ref=runs_ref, chunk_start=cs_d, chunk_end=ce_d,
+                                  chunk_kind=ns.chunk_by)
+                log.info("no pitches for chunk %s -> %s; skip umpire fetch", cs, ce)
+                continue
+
+            if (sync_umpires and umpire_client is not None
+                    and umpire_writer is not None and umpire_ref is not None):
+                games = (
+                    df[["game_pk", "game_date"]]
+                    .drop_duplicates()
+                    .assign(game_date=lambda x: pd.to_datetime(x["game_date"])
+                            .dt.strftime("%Y-%m-%d"))
+                    .itertuples(index=False, name=None)
+                )
+                umpire_df = umpire_client.fetch(games)
+                umpire_writer.write(umpire_ref, umpire_df, cs, ce)
+
+            runs.record_success(ref=runs_ref, chunk_start=cs_d, chunk_end=ce_d,
+                                chunk_kind=ns.chunk_by, rows_written=n)
         except Exception as e:
             runs.record_failed(ref=runs_ref, chunk_start=cs_d, chunk_end=ce_d,
                                chunk_kind=ns.chunk_by, error=str(e))
             raise
-
-        if df.empty:
-            runs.record_empty(ref=runs_ref, chunk_start=cs_d, chunk_end=ce_d,
-                              chunk_kind=ns.chunk_by)
-            log.info("no pitches for chunk %s -> %s; skip umpire fetch", cs, ce)
-            continue
-
-        runs.record_success(ref=runs_ref, chunk_start=cs_d, chunk_end=ce_d,
-                            chunk_kind=ns.chunk_by, rows_written=n)
-
-        if (sync_umpires and umpire_client is not None
-                and umpire_writer is not None and umpire_ref is not None):
-            games = (
-                df[["game_pk", "game_date"]]
-                .drop_duplicates()
-                .assign(game_date=lambda x: pd.to_datetime(x["game_date"]).dt.strftime("%Y-%m-%d"))
-                .itertuples(index=False, name=None)
-            )
-            umpire_df = umpire_client.fetch(games)
-            umpire_writer.write(umpire_ref, umpire_df, cs, ce)
 
     # Games are season-grained (one statsapi call per season returns full
     # past + future schedule), so fetch once after the chunk loop covering
