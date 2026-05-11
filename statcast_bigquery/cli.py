@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import calendar
 import json
 import logging
 import sys
@@ -106,14 +107,23 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _iter_year_chunks(start: str, end: str) -> list[tuple[str, str]]:
+def _iter_chunks(start: str, end: str, kind: str) -> list[tuple[str, str]]:
+    """Split [start, end] into chunks by year, month, or single range."""
     s = datetime.strptime(start, "%Y-%m-%d").date()
     e = datetime.strptime(end, "%Y-%m-%d").date()
+    if kind == "range":
+        return [(s.isoformat(), e.isoformat())]
     chunks: list[tuple[str, str]] = []
     cur = s
     while cur <= e:
-        year_end = date(cur.year, 12, 31)
-        last = min(year_end, e)
+        if kind == "year":
+            period_end = date(cur.year, 12, 31)
+        elif kind == "month":
+            last_day = calendar.monthrange(cur.year, cur.month)[1]
+            period_end = date(cur.year, cur.month, last_day)
+        else:
+            raise ValueError(f"unknown chunk kind: {kind!r}")
+        last = min(period_end, e)
         chunks.append((cur.isoformat(), last.isoformat()))
         cur = last + timedelta(days=1)
     return chunks
@@ -154,8 +164,7 @@ def cmd_sync(ns: argparse.Namespace) -> int:
         if games_writer is not None and games_ref is not None:
             games_writer.create_table_if_missing(games_ref)
 
-    chunks = _iter_year_chunks(ns.start, ns.end) if ns.chunk_by == "year" \
-        else [(ns.start, ns.end)]
+    chunks = _iter_chunks(ns.start, ns.end, ns.chunk_by)
     for cs, ce in chunks:
         log.info("chunk %s -> %s", cs, ce)
         if ns.dry_run:

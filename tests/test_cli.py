@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from statcast_bigquery.cli import build_parser, cmd_docs, main
+from statcast_bigquery.cli import _iter_chunks, build_parser, cmd_docs, main
 
 
 def test_parser_accepts_sync_args():
@@ -73,3 +73,48 @@ def test_docs_dictionary_apply_requires_dictionary_table(monkeypatch):
                         lambda: pytest.fail("bigquery.Client must not be called"))
     rc = cmd_docs(ns)
     assert rc == 2
+
+
+def test_iter_chunks_year_clips_to_year_end():
+    chunks = _iter_chunks("2024-06-15", "2026-03-10", "year")
+    assert chunks == [
+        ("2024-06-15", "2024-12-31"),
+        ("2025-01-01", "2025-12-31"),
+        ("2026-01-01", "2026-03-10"),
+    ]
+
+
+def test_iter_chunks_year_single_year():
+    assert _iter_chunks("2024-04-01", "2024-10-31", "year") == [
+        ("2024-04-01", "2024-10-31"),
+    ]
+
+
+def test_iter_chunks_month_clips_to_month_end():
+    chunks = _iter_chunks("2024-02-15", "2024-04-10", "month")
+    assert chunks == [
+        ("2024-02-15", "2024-02-29"),  # leap year
+        ("2024-03-01", "2024-03-31"),
+        ("2024-04-01", "2024-04-10"),
+    ]
+
+
+def test_iter_chunks_month_non_leap_february():
+    chunks = _iter_chunks("2025-01-15", "2025-03-05", "month")
+    assert chunks == [
+        ("2025-01-15", "2025-01-31"),
+        ("2025-02-01", "2025-02-28"),
+        ("2025-03-01", "2025-03-05"),
+    ]
+
+
+def test_iter_chunks_range_returns_single_chunk():
+    assert _iter_chunks("2024-01-01", "2024-12-31", "range") == [
+        ("2024-01-01", "2024-12-31"),
+    ]
+
+
+def test_iter_chunks_single_day():
+    assert _iter_chunks("2024-07-04", "2024-07-04", "month") == [
+        ("2024-07-04", "2024-07-04"),
+    ]
