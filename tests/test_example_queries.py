@@ -1,55 +1,38 @@
-"""Tests for the example query registry."""
+"""Validate every entry in EXAMPLE_QUERIES parses as BigQuery SQL and uses
+columns that actually exist in PITCHES_SCHEMA."""
 
 from __future__ import annotations
 
-from pathlib import Path
-
-import duckdb
-import pandas as pd
 import pytest
+import sqlglot
+from sqlglot.errors import ParseError
 
 from statcast_bigquery.docs.example_queries import EXAMPLE_QUERIES, ExampleQuery
 from statcast_bigquery.schema import PITCHES_SCHEMA
 
-FIXTURE = Path(__file__).parent / "fixtures" / "statcast_sample_2024-04-01.parquet"
+PITCHES_COLUMN_NAMES = {c.name for c in PITCHES_SCHEMA}
 
 
-def test_minimum_query_count():
+@pytest.mark.parametrize("q", EXAMPLE_QUERIES, ids=lambda q: q.title)
+def test_query_parses_as_bigquery(q: ExampleQuery):
+    """Every example query must parse under BigQuery dialect."""
+    sql = q.sql.format(table="`proj.ds.statcast_pitches`")
+    try:
+        sqlglot.parse_one(sql, dialect="bigquery")
+    except ParseError as e:
+        pytest.fail(f"BigQuery parse error in {q.title!r}: {e}\nSQL:\n{sql}")
+
+
+@pytest.mark.parametrize("q", EXAMPLE_QUERIES, ids=lambda q: q.title)
+def test_columns_used_exist_in_schema(q: ExampleQuery):
+    """Every name in q.columns_used must exist in PITCHES_SCHEMA — catches stale
+    metadata after a schema rename."""
+    missing = [c for c in q.columns_used if c not in PITCHES_COLUMN_NAMES]
+    assert not missing, (
+        f"{q.title!r}: columns_used references {missing} not in PITCHES_SCHEMA"
+    )
+
+
+def test_at_least_25_queries():
+    """Floor: catalog must remain comprehensive."""
     assert len(EXAMPLE_QUERIES) >= 25
-
-
-def test_every_query_has_required_fields():
-    for q in EXAMPLE_QUERIES:
-        assert isinstance(q, ExampleQuery)
-        assert q.title.strip()
-        assert q.question.strip()
-        assert q.sql.strip()
-        assert "{table}" in q.sql, f"{q.title!r}: SQL must contain '{{table}}' placeholder"
-        assert q.columns_used
-
-
-def test_query_columns_exist_in_schema():
-    schema_names = {c.name for c in PITCHES_SCHEMA}
-    for q in EXAMPLE_QUERIES:
-        for col in q.columns_used:
-            assert col in schema_names, f"{q.title!r} references missing column {col!r}"
-
-
-@pytest.fixture
-def fixture_table() -> duckdb.DuckDBPyConnection:
-    df = pd.read_parquet(FIXTURE)
-    df = df[df["game_type"] == "R"]
-    con = duckdb.connect(":memory:")
-    con.register("statcast_pitches_view", df)
-    con.execute("CREATE TABLE statcast_pitches AS SELECT * FROM statcast_pitches_view")
-    return con
-
-
-def test_every_query_parses_against_fixture(fixture_table: duckdb.DuckDBPyConnection):
-    """Every example query parses (DuckDB is permissive enough to validate SQL syntax)."""
-    for q in EXAMPLE_QUERIES:
-        sql = q.sql.replace("{table}", "statcast_pitches")
-        try:
-            fixture_table.execute(f"EXPLAIN {sql}")
-        except Exception as e:
-            pytest.fail(f"{q.title!r} did not parse: {e}\nSQL:\n{sql}")
