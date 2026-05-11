@@ -21,6 +21,16 @@ DEFAULT_SLEEP_SECONDS: Final[float] = 2.0
 DEFAULT_MAX_RETRIES: Final[int] = 5
 STATSAPI_BASE: Final[str] = "https://statsapi.mlb.com/api/v1/standings"
 
+# Abbreviation aliases: maps statsapi-canonical -> Statcast modern.
+# Statcast started using "ATH" (Athletics rebrand) and uses "AZ" for the
+# Diamondbacks; statsapi /standings still returns "OAK" and "ARI" via the
+# stable team_id → MLB_TEAMS lookup. We translate at the boundary so the
+# standings verifier compares all 30 teams.
+_STATCAST_ABBR_ALIASES: Final[dict[str, str]] = {
+    "OAK": "ATH",
+    "ARI": "AZ",
+}
+
 
 class StandingsClient:
     """Pull team-season W-L-RS-RA from statsapi /standings."""
@@ -74,7 +84,7 @@ class StandingsClient:
                         "statsapi team_id %d not in MLB_TEAMS; skipping", team_id,
                     )
                     continue
-                abbr = team_meta["abbr"]
+                abbr = _STATCAST_ABBR_ALIASES.get(team_meta["abbr"], team_meta["abbr"])
                 result[abbr] = {
                     "wins": int(team_record["wins"]),
                     "losses": int(team_record["losses"]),

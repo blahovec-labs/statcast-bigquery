@@ -16,6 +16,12 @@
   verifier uses team abbreviation strings; the existing batter and
   pitcher verifiers continue to pass `int(player_id)` with no change
   in behavior.
+- `StandingsClient` translates statsapi's team abbreviations to the
+  Statcast modern abbreviations at the boundary: `OAK` → `ATH`
+  (Athletics rebrand) and `ARI` → `AZ`. Without this, the team-season
+  verify would silently drop these 2 teams from the comparison since
+  the pitch data uses the Statcast abbrevs but `MLB_TEAMS` uses
+  statsapi's canonical ones (which the games writer still needs).
 
 ## [0.3.1] - 2026-05-11
 

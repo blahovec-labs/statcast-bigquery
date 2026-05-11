@@ -8,7 +8,7 @@ from typing import Final
 from google.cloud import bigquery
 
 from statcast_bigquery.games.teams import MLB_TEAMS
-from statcast_bigquery.standings.client import StandingsClient
+from statcast_bigquery.standings.client import _STATCAST_ABBR_ALIASES, StandingsClient
 from statcast_bigquery.verify.base import VerificationResult
 from statcast_bigquery.verify.compare import compare_series
 
@@ -105,9 +105,9 @@ def _run_aggregation(
 
 
 def _team_full_names() -> dict[int | str, str]:
-    """abbr → 'Team Full Name' (display) lookup from MLB_TEAMS."""
+    """abbr → 'Team Full Name' (display) lookup from MLB_TEAMS, with Statcast aliases."""
     return {
-        meta["abbr"]: meta.get("full_name", meta["abbr"])
+        _STATCAST_ABBR_ALIASES.get(meta["abbr"], meta["abbr"]): meta.get("full_name", meta["abbr"])
         for meta in MLB_TEAMS.values()
     }
 

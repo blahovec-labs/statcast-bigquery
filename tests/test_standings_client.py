@@ -126,3 +126,45 @@ def test_fetch_season_unknown_team_id_skipped():
         mock_get.return_value.raise_for_status = MagicMock()
         result = StandingsClient().fetch_season(2024)
     assert result == {}
+
+
+def test_oak_aliased_to_ath():
+    """statsapi returns team_id 133 ('OAK'); we expose it as 'ATH' (Statcast modern)."""
+    response = {
+        "records": [{
+            "division": {"id": 200},
+            "teamRecords": [{
+                "team": {"id": 133, "name": "Athletics"},
+                "wins": 75, "losses": 87,
+                "runsScored": 650, "runsAllowed": 700,
+            }],
+        }],
+    }
+    with patch("statcast_bigquery.standings.client.requests.get") as mock_get:
+        mock_get.return_value = MagicMock(status_code=200, json=lambda: response)
+        mock_get.return_value.raise_for_status = MagicMock()
+        result = StandingsClient().fetch_season(2024)
+    assert "ATH" in result
+    assert "OAK" not in result
+    assert result["ATH"]["wins"] == 75
+
+
+def test_ari_aliased_to_az():
+    """statsapi returns team_id 109 ('ARI'); we expose it as 'AZ' (Statcast modern)."""
+    response = {
+        "records": [{
+            "division": {"id": 203},
+            "teamRecords": [{
+                "team": {"id": 109, "name": "Arizona Diamondbacks"},
+                "wins": 89, "losses": 73,
+                "runsScored": 814, "runsAllowed": 720,
+            }],
+        }],
+    }
+    with patch("statcast_bigquery.standings.client.requests.get") as mock_get:
+        mock_get.return_value = MagicMock(status_code=200, json=lambda: response)
+        mock_get.return_value.raise_for_status = MagicMock()
+        result = StandingsClient().fetch_season(2024)
+    assert "AZ" in result
+    assert "ARI" not in result
+    assert result["AZ"]["wins"] == 89
