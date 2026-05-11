@@ -1,6 +1,6 @@
 [project]
 name = "statcast-bigquery"
-version = "0.2.0"
+version = "0.3.0"
 description = "Statcast → BigQuery: idempotent ingestion + LLM-friendly docs + Baseball Savant verification"
 readme = "README.md"
 license = { text = "MIT" }

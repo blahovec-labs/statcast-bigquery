@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.3.0] - 2026-05-10
+
+### Added
+- **Game schedule ingestion.** New `games` table sourced from MLB statsapi
+  `/api/v1/schedule` with `hydrate=probablePitcher,venue`. Covers regular
+  season + every postseason round (R, P, F, D, L, W). One row per game_pk
+  — includes both completed games (with final scores) and future scheduled
+  games (with probable pitchers), so this single table powers
+  "yesterday's results" and "today's slate" views.
+- `statcast-bigquery sync` now fetches games alongside pitches + umpires
+  by default. Use `--skip-games` to opt out or `--games-table` to override
+  the default `<dataset>.games`. Games are season-grained: one statsapi
+  HTTP call returns the entire season (~2,500 games), so the sync auto-
+  detects the seasons overlapping `[start, end]` and replaces them
+  wholesale.
+- New module `statcast_bigquery.games` (schema, teams, client, writer)
+  plus `MLB_TEAMS` constant — 30-team id → abbrev/league/division map.
+
+### Why
+- MLB_AI v1 right-nav game cards (yesterday results, today's slate with
+  probable pitchers) need a games table. Modeling future games needs
+  scheduled-game records before they're played. Bundling source means a
+  single sync run keeps statcast_pitches, game_umpires, AND games all
+  fresh in one Cloud Run Job execution.
+
 ## [0.2.0] - 2026-05-10
 
 ### Added

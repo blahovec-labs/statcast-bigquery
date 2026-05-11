@@ -20,6 +20,8 @@ from statcast_bigquery.docs.renderers import (
     render_llm_context,
     render_markdown,
 )
+from statcast_bigquery.games.client import GameClient
+from statcast_bigquery.games.writer import GamesTableRef, GameWriter
 from statcast_bigquery.umpires.client import UmpireClient
 from statcast_bigquery.umpires.writer import UmpireTableRef, UmpireWriter
 from statcast_bigquery.verify.savant import (
@@ -58,6 +60,17 @@ def build_parser() -> argparse.ArgumentParser:
     p_sync.add_argument(
         "--skip-umpires", action="store_true",
         help="Skip umpire ingestion (pitches only).",
+    )
+    p_sync.add_argument(
+        "--games-table",
+        help=(
+            "project.dataset.table for games. "
+            "Defaults to <pitches-dataset>.games."
+        ),
+    )
+    p_sync.add_argument(
+        "--skip-games", action="store_true",
+        help="Skip games schedule ingestion.",
     )
     p_sync.add_argument("--chunk-by", default="year", choices=["year", "month", "range"])
     p_sync.add_argument("--resume", action="store_true",
@@ -118,10 +131,23 @@ def cmd_sync(ns: argparse.Namespace) -> int:
         umpire_client = UmpireClient()
         umpire_writer = UmpireWriter(client=client)
 
+    sync_games = not getattr(ns, "skip_games", False)
+    games_ref: GamesTableRef | None = None
+    games_client: GameClient | None = None
+    games_writer: GameWriter | None = None
+    if sync_games:
+        games_table = getattr(ns, "games_table", None) or \
+            f"{ref.project}.{ref.dataset}.games"
+        games_ref = GamesTableRef.parse(games_table)
+        games_client = GameClient()
+        games_writer = GameWriter(client=client)
+
     if not ns.dry_run:
         writer.create_table_if_missing(ref)
         if umpire_writer is not None and umpire_ref is not None:
             umpire_writer.create_table_if_missing(umpire_ref)
+        if games_writer is not None and games_ref is not None:
+            games_writer.create_table_if_missing(games_ref)
 
     chunks = _iter_year_chunks(ns.start, ns.end) if ns.chunk_by == "year" \
         else [(ns.start, ns.end)]
@@ -145,6 +171,18 @@ def cmd_sync(ns: argparse.Namespace) -> int:
             )
             umpire_df = umpire_client.fetch(games)
             umpire_writer.write(umpire_ref, umpire_df, cs, ce)
+
+    # Games are season-grained (one statsapi call per season returns full
+    # past + future schedule), so fetch once after the chunk loop covering
+    # every season that overlaps [start, end].
+    if (sync_games and games_client is not None
+            and games_writer is not None and games_ref is not None):
+        start_year = datetime.strptime(ns.start, "%Y-%m-%d").date().year
+        end_year = datetime.strptime(ns.end, "%Y-%m-%d").date().year
+        seasons = list(range(start_year, end_year + 1))
+        log.info("games: syncing seasons %s", seasons)
+        games_df = games_client.fetch_seasons(seasons)
+        games_writer.write(games_ref, games_df, seasons)
     return 0
 
 
