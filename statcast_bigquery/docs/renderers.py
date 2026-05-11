@@ -145,6 +145,69 @@ def render_dbt_yaml(model_name: str = "statcast_pitches") -> str:
     return "\n".join(parts) + "\n"
 
 
+def apply_data_dictionary(
+    *,
+    client: bigquery.Client,
+    dictionary_table: str,
+    dataset: str,
+    table: str,
+) -> int:
+    """Atomically replace the data_dictionary rows for (dataset, table).
+
+    Wraps DELETE + INSERT in a single BEGIN TRANSACTION ... COMMIT TRANSACTION
+    multi-statement query so the table is never observed in a half-replaced state.
+
+    Returns the number of rows inserted.
+    """
+    rows = render_data_dictionary(dataset=dataset, table=table)
+    if not rows:
+        return 0
+
+    # Build VALUES tuples inline. Row volume ~120 per table; well within DML limits.
+    # Strings are escaped via repr-then-strip; tags is BQ array literal.
+    def _str(s: str | None) -> str:
+        if s is None:
+            return "NULL"
+        # Use BQ raw-string-style escaping by doubling single quotes
+        return "'" + s.replace("\\", "\\\\").replace("'", "\\'") + "'"
+
+    def _tags(t: list[str]) -> str:
+        return "[" + ", ".join(_str(x) for x in t) + "]"
+
+    values_lines: list[str] = []
+    for r in rows:
+        values_lines.append(
+            "("
+            f"{_str(r['dataset'])}, {_str(r['table'])}, {_str(r['column'])}, "
+            f"{_str(r['dtype'])}, {_str(r['description'])}, "
+            f"{_str(r['business_definition'])}, {_str(r['owner'])}, "
+            f"{_tags(r['tags'])}, {_str(r['source_system'])}, "
+            f"{_str(r['upstream_lineage_json'])}, "
+            f"TIMESTAMP({_str(r['created_at'])}), TIMESTAMP({_str(r['updated_at'])})"
+            ")"
+        )
+    values_sql = ",\n  ".join(values_lines)
+
+    sql = (
+        "BEGIN TRANSACTION;\n"
+        f"DELETE FROM `{dictionary_table}` "
+        f"WHERE dataset=@dataset AND table=@table;\n"
+        f"INSERT INTO `{dictionary_table}` "
+        "(dataset, `table`, column, dtype, description, business_definition, "
+        "owner, tags, source_system, upstream_lineage_json, created_at, updated_at) "
+        f"VALUES\n  {values_sql};\n"
+        "COMMIT TRANSACTION;"
+    )
+    job_config = bigquery.QueryJobConfig(
+        query_parameters=[
+            bigquery.ScalarQueryParameter("dataset", "STRING", dataset),
+            bigquery.ScalarQueryParameter("table", "STRING", table),
+        ]
+    )
+    client.query_and_wait(sql, job_config=job_config)
+    return len(rows)
+
+
 def _columns_by_group() -> dict[str, list[ColumnSpec]]:
     """Group columns by their first semantic_tag (canonical group)."""
     out: dict[str, list[ColumnSpec]] = {}

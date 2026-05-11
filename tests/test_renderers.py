@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from unittest.mock import MagicMock, call  # noqa: F401
 
 from google.cloud import bigquery
 
@@ -68,3 +69,46 @@ def test_render_dbt_yaml_has_columns_and_tests():
     assert "name: statcast_pitches" in yml
     # required-mode columns get a not_null test
     assert "not_null" in yml
+
+
+def test_apply_data_dictionary_runs_delete_then_insert():
+    """apply_data_dictionary should DELETE old rows for (dataset,table) then INSERT new ones,
+    wrapped in a single multi-statement BEGIN TRANSACTION ... COMMIT TRANSACTION."""
+    from statcast_bigquery.docs.renderers import apply_data_dictionary
+
+    client = MagicMock()
+    apply_data_dictionary(
+        client=client,
+        dictionary_table="proj.shared_ops.data_dictionary",
+        dataset="my_dataset",
+        table="statcast_pitches",
+    )
+    # One multi-statement query call: BEGIN; DELETE; INSERT; COMMIT
+    assert client.query_and_wait.call_count == 1
+    sql, kwargs = client.query_and_wait.call_args[0][0], client.query_and_wait.call_args[1]
+    assert "BEGIN TRANSACTION" in sql.upper()
+    assert "DELETE FROM `proj.shared_ops.data_dictionary`" in sql
+    assert "INSERT INTO `proj.shared_ops.data_dictionary`" in sql
+    assert "COMMIT TRANSACTION" in sql.upper()
+    # Verify @dataset/@table parameters used (not string interpolation)
+    params = {p.name: p.value for p in kwargs["job_config"].query_parameters}
+    assert params["dataset"] == "my_dataset"
+    assert params["table"] == "statcast_pitches"
+
+
+def test_apply_data_dictionary_inserts_one_row_per_column():
+    from statcast_bigquery.docs.renderers import apply_data_dictionary
+
+    client = MagicMock()
+    apply_data_dictionary(
+        client=client,
+        dictionary_table="proj.shared_ops.data_dictionary",
+        dataset="my_dataset",
+        table="statcast_pitches",
+    )
+    sql = client.query_and_wait.call_args[0][0]
+    # Every PITCHES_SCHEMA column name appears in the INSERT VALUES section
+    insert_idx = sql.index("INSERT INTO")
+    insert_section = sql[insert_idx:]
+    for spec in PITCHES_SCHEMA:
+        assert f"'{spec.name}'" in insert_section, f"missing column {spec.name}"

@@ -83,6 +83,10 @@ def build_parser() -> argparse.ArgumentParser:
     p_docs.add_argument("--table", help="project.dataset.table (required for bq-apply, dictionary)")
     p_docs.add_argument("--dataset", help="for dictionary format")
     p_docs.add_argument("--output", default="-", help="path or '-' for stdout (default)")
+    p_docs.add_argument("--apply", action="store_true",
+        help="For dictionary format: write directly to --dictionary-table instead of stdout JSON.")
+    p_docs.add_argument("--dictionary-table",
+        help="project.dataset.table for the data_dictionary table (required with --apply).")
 
     # verify
     p_v = sub.add_parser("verify", help="Compare aggregations to external sources")
@@ -206,6 +210,20 @@ def cmd_docs(ns: argparse.Namespace) -> int:
             log.error("--dataset and --table required for dictionary")
             return 2
         ref = TableRef.parse(ns.table)
+        if ns.apply:
+            if not ns.dictionary_table:
+                log.error("--dictionary-table required with --apply")
+                return 2
+            from statcast_bigquery.docs.renderers import apply_data_dictionary
+            client = bigquery.Client()
+            n = apply_data_dictionary(
+                client=client,
+                dictionary_table=ns.dictionary_table,
+                dataset=ns.dataset,
+                table=ref.table,
+            )
+            log.info("applied %d rows to %s", n, ns.dictionary_table)
+            return 0
         out = json.dumps(
             render_data_dictionary(dataset=ns.dataset, table=ref.table), indent=2
         )

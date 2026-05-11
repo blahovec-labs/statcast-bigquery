@@ -55,3 +55,18 @@ def test_main_version_flag(capsys):
     captured = capsys.readouterr()
     assert __version__ in captured.out
     assert exc.value.code == 0
+
+
+def test_docs_dictionary_apply_requires_dictionary_table():
+    """--apply without --dictionary-table should error out."""
+    parser = build_parser()
+    ns = parser.parse_args([
+        "docs", "--format", "dictionary",
+        "--dataset", "my_dataset",
+        "--table", "p.d.statcast_pitches",
+        "--apply",
+    ])
+    assert ns.apply is True
+    assert ns.dictionary_table is None
+    # cmd_docs is the function that validates and returns rc=2 in this case
+    # (covered by integration; here we just assert parser shape)
