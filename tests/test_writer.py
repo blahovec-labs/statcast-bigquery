@@ -70,6 +70,27 @@ def test_idempotent_write_emits_delete_then_insert():
     assert "BETWEEN" in delete_sql
 
 
+def test_write_drops_columns_not_in_schema():
+    """Savant periodically adds columns (e.g. miss_distance, 2026-06). The writer
+    must drop unknown columns so the explicit-schema load does not 400 with
+    'Cannot add fields'."""
+    client = make_mock_client()
+    writer = BigQueryWriter(client=client)
+    df = pd.DataFrame(
+        {
+            "game_date": [date(2024, 4, 1)],
+            "game_pk": [1],
+            "miss_distance": [3.2],  # unknown Savant column not in PITCHES_SCHEMA
+        }
+    )
+
+    writer.write(TableRef.parse("p.d.statcast_pitches"), df, "2024-04-01", "2024-04-01")
+
+    loaded_df = client.load_table_from_dataframe.call_args.args[0]
+    assert "miss_distance" not in loaded_df.columns
+    assert "game_pk" in loaded_df.columns
+
+
 def test_write_skips_when_dataframe_empty():
     client = make_mock_client()
     writer = BigQueryWriter(client=client)

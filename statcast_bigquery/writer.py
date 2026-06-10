@@ -47,14 +47,26 @@ def _bq_schema_from_specs() -> list[bigquery.SchemaField]:
 
 
 def _coerce_df_to_schema(df: pd.DataFrame) -> pd.DataFrame:
-    """Coerce dataframe column dtypes so pyarrow can convert into the BQ schema.
+    """Drop unknown columns and coerce dtypes so the frame loads against PITCHES_SCHEMA.
 
-    pyarrow auto-casts numeric → numeric and dt → DATE/TIMESTAMP, but it does NOT
-    auto-cast Int64/Float64 → STRING. pybaseball returns some columns (e.g. sv_id)
-    as Int64 when the column is all-null, even though real values are strings —
-    this fails Arrow conversion against a STRING BQ column. Force-cast STRING
-    columns to pandas string dtype.
+    Baseball Savant periodically ADDS new columns to its feed (e.g. ``miss_distance``
+    in 2026-06). Because ``write()`` loads the full dataframe against the explicit
+    PITCHES_SCHEMA, an unknown column makes BigQuery reject the load with
+    ``400 ... Cannot add fields (field: ...)`` — which previously crashed daily
+    ingestion. Drop any column the schema doesn't define so the load stays stable as
+    Savant evolves; log what's dropped so new fields can be added deliberately.
+
+    Then coerce dtypes: pyarrow auto-casts numeric → numeric and dt → DATE/TIMESTAMP,
+    but it does NOT auto-cast Int64/Float64 → STRING. pybaseball returns some columns
+    (e.g. sv_id) as Int64 when the column is all-null, even though real values are
+    strings — this fails Arrow conversion against a STRING BQ column. Force-cast
+    STRING columns to pandas string dtype.
     """
+    known = {spec.name for spec in PITCHES_SCHEMA}
+    extra = [c for c in df.columns if c not in known]
+    if extra:
+        log.warning("dropping %d column(s) not in PITCHES_SCHEMA: %s", len(extra), extra)
+        df = df.drop(columns=extra)
     for spec in PITCHES_SCHEMA:
         if spec.type == "STRING" and spec.name in df.columns:
             df[spec.name] = df[spec.name].astype("string")

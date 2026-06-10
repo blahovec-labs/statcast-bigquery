@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.4.1] - 2026-06-10
+
+### Fixed
+- Writer now drops dataframe columns not in `PITCHES_SCHEMA` before loading
+  (logging what it drops). Baseball Savant periodically adds new pitch columns
+  (e.g. `miss_distance`, 2026-06); loading the full frame against the explicit
+  schema made BigQuery reject the load with `400 ... Cannot add fields (field: …)`,
+  which crashed daily ingestion. Dropping unknown columns keeps the load stable as
+  Savant evolves — add new fields to `PITCHES_SCHEMA` deliberately to capture them.
+
 ## [0.4.0] - 2026-05-11
 
 ### Added
