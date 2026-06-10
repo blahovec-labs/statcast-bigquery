@@ -9,7 +9,6 @@ import pandas as pd
 from statcast_bigquery.games.client import (
     DEFAULT_GAME_TYPES,
     GameClient,
-    GameRow,
 )
 from statcast_bigquery.games.schema import (
     GAMES_SCHEMA,

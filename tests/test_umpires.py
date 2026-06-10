@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import pandas as pd
 
-from statcast_bigquery.umpires.client import UmpireClient, UmpireRow, _POSITION_MAP
+from statcast_bigquery.umpires.client import _POSITION_MAP, UmpireClient, UmpireRow
 from statcast_bigquery.umpires.schema import (
     GAME_UMPIRES_SCHEMA,
     get_umpires_partitioning,
