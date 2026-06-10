@@ -18,10 +18,10 @@ def test_comparison_within_tolerance_true_when_diff_small():
 
 
 def test_compare_series_classifies_per_row():
-    ours = {1: 0.240, 2: 0.300, 3: 0.180}
-    expected = {1: 0.241, 2: 0.310, 3: 0.181}  # row 2 outside tolerance
-    sample_sizes = {1: 200, 2: 200, 3: 200}
-    names = {1: "A", 2: "B", 3: "C"}
+    ours: dict[int | str, float] = {1: 0.240, 2: 0.300, 3: 0.180}
+    expected: dict[int | str, float] = {1: 0.241, 2: 0.310, 3: 0.181}  # row 2 outside tolerance
+    sample_sizes: dict[int | str, int] = {1: 200, 2: 200, 3: 200}
+    names: dict[int | str, str] = {1: "A", 2: "B", 3: "C"}
     rows = compare_series(
         ours=ours, expected=expected, sample_sizes=sample_sizes,
         entity_names=names, tolerance=0.005,

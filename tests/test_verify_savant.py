@@ -60,7 +60,7 @@ def test_batting_verifier_run_with_mocked_savant(savant_batter: pd.DataFrame):
     # so divide Savant's brl_percent by 100 to simulate what BQ produces.
     our_rows = pd.DataFrame({
         "id": savant_batter["player_id"].head(50).values,
-        "value": savant_batter[brl_col].head(50).values / 100.0,
+        "value": (savant_batter[brl_col].head(50) / 100.0).values,
         "sample_size": savant_batter["attempts"].head(50).values,
     })
     bq.query_and_wait.return_value.to_dataframe.return_value = our_rows
@@ -145,7 +145,7 @@ def test_batting_barrel_rate_scales_savant_percent_to_fraction(monkeypatch):
                         lambda season: {100: "Doe, John"})
 
     v = BaseballSavantBattingVerifier(
-        client=None, table="p.d.t", season=2024, metric="barrel_rate"
+        client=None, table="p.d.t", season=2024, metric="barrel_rate"  # pyright: ignore
     )
     result = v.run()
     assert result.total_compared == 1
@@ -167,7 +167,7 @@ def test_pitching_hard_hit_allowed_scales_savant_percent(monkeypatch):
                         lambda season: {200: "Doe, Jane"})
 
     v = BaseballSavantPitchingVerifier(
-        client=None, table="p.d.t", season=2024, metric="hard_hit_allowed"
+        client=None, table="p.d.t", season=2024, metric="hard_hit_allowed"  # pyright: ignore
     )
     result = v.run()
     assert result.total_compared == 1
@@ -187,7 +187,7 @@ def test_batting_avg_exit_velo_does_not_scale(monkeypatch):
                         lambda season: {300: "Doe, J"})
 
     v = BaseballSavantBattingVerifier(
-        client=None, table="p.d.t", season=2024, metric="avg_exit_velo"
+        client=None, table="p.d.t", season=2024, metric="avg_exit_velo"  # pyright: ignore
     )
     result = v.run()
     assert result.deltas[0].expected == 89.5  # unchanged

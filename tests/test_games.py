@@ -82,8 +82,10 @@ def test_teams_has_all_30_teams():
 
 
 def test_team_info_lookup():
-    assert team_info(147)["abbr"] == "NYY"
-    assert team_info(119)["abbr"] == "LAD"
+    nyy = team_info(147)
+    assert nyy is not None and nyy["abbr"] == "NYY"
+    lad = team_info(119)
+    assert lad is not None and lad["abbr"] == "LAD"
     assert team_info(999999) is None
 
 
