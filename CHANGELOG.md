@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.5.0] - 2026-10-01
+
+### Added
+- `sync --include-postseason` (and `StatcastClient(include_postseason=True)`) also
+  loads postseason pitches — `game_type` `F` (wild card), `D` (division series),
+  `L` (league championship series), `W` (World Series). Default is unchanged:
+  regular season only. Spring training and exhibition games are always dropped.
+  Downstream season aggregates should keep filtering `game_type = 'R'`; the
+  bundled `verify` checks already do.
+
 ## [0.4.1] - 2026-06-10
 
 ### Fixed

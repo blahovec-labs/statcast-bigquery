@@ -161,7 +161,7 @@ def test_cmd_sync_resume_skips_completed_chunks(monkeypatch, caplog):
 
     monkeypatch.setattr("statcast_bigquery.cli.bigquery.Client", lambda: fake_bq)
     monkeypatch.setattr("statcast_bigquery.cli.BigQueryWriter", lambda client: fake_writer)
-    monkeypatch.setattr("statcast_bigquery.cli.StatcastClient", lambda: fake_sc)
+    monkeypatch.setattr("statcast_bigquery.cli.StatcastClient", lambda **kw: fake_sc)
     monkeypatch.setattr("statcast_bigquery.runs.RunsTable", lambda client: fake_runs)
 
     ns = argparse.Namespace(
@@ -214,3 +214,35 @@ def test_verify_team_season_run_diff_metric_accepted():
         "--table", "p.d.statcast_pitches",
     ])
     assert ns.metric == "run_diff"
+
+
+def test_sync_parser_include_postseason_defaults_off():
+    ns = build_parser().parse_args(["sync", "--start", "2026-09-29", "--end", "2026-10-01",
+                                    "--table", "p.d.t"])
+    assert ns.include_postseason is False
+    ns = build_parser().parse_args(["sync", "--start", "2026-09-29", "--end", "2026-10-01",
+                                    "--table", "p.d.t", "--include-postseason"])
+    assert ns.include_postseason is True
+
+
+def test_cmd_sync_passes_include_postseason_to_client(monkeypatch):
+    seen = {}
+    fake_sc = MagicMock()
+    fake_sc.fetch.return_value = pd.DataFrame()
+
+    def _client(**kw):
+        seen.update(kw)
+        return fake_sc
+
+    monkeypatch.setattr("statcast_bigquery.cli.bigquery.Client", lambda: MagicMock())
+    monkeypatch.setattr("statcast_bigquery.cli.BigQueryWriter", lambda client: MagicMock())
+    monkeypatch.setattr("statcast_bigquery.cli.StatcastClient", _client)
+    monkeypatch.setattr("statcast_bigquery.runs.RunsTable", lambda client: MagicMock())
+    ns = argparse.Namespace(
+        command="sync", start="2026-09-29", end="2026-10-01",
+        table="p.d.statcast_pitches", umpires_table=None, skip_umpires=True,
+        games_table=None, skip_games=True, runs_table=None,
+        chunk_by="range", resume=False, dry_run=False, include_postseason=True,
+    )
+    cmd_sync(ns)
+    assert seen == {"include_postseason": True}

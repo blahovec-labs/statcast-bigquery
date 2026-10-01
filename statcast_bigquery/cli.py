@@ -86,6 +86,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--skip-games", action="store_true",
         help="Skip games schedule ingestion.",
     )
+    p_sync.add_argument(
+        "--include-postseason", action="store_true",
+        help="Also load postseason pitches (game_type F/D/L/W). Default: regular season only.",
+    )
     p_sync.add_argument("--chunk-by", default="year", choices=["year", "month", "range"])
     p_sync.add_argument("--resume", action="store_true",
         help=("Skip chunks already recorded as success/empty in --runs-table. "
@@ -146,7 +150,7 @@ def _iter_chunks(start: str, end: str, kind: str) -> list[tuple[str, str]]:
 
 def cmd_sync(ns: argparse.Namespace) -> int:
     client = bigquery.Client()
-    sc = StatcastClient()
+    sc = StatcastClient(include_postseason=getattr(ns, "include_postseason", False))
     writer = BigQueryWriter(client=client)
     ref = TableRef.parse(ns.table)
 

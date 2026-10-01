@@ -54,3 +54,20 @@ def test_fetch_sleeps_between_requests():
     """Polite sleep is configurable; default 2.0 (V1 pattern)."""
     client = StatcastClient()
     assert client.sleep_seconds == 2.0
+
+
+def test_fetch_default_excludes_postseason(fixture_df: pd.DataFrame):
+    fixture_df.loc[0, "game_type"] = "F"  # wild card
+    with patch("statcast_bigquery.client.pb.statcast", return_value=fixture_df):
+        result = StatcastClient(sleep_seconds=0).fetch("2024-04-01", "2024-04-01")
+    assert (result["game_type"] == "R").all()
+
+
+def test_fetch_include_postseason_keeps_all_playoff_rounds(fixture_df: pd.DataFrame):
+    for i, gt in enumerate(["F", "D", "L", "W", "S", "E"]):  # S=spring, E=exhibition
+        fixture_df.loc[i, "game_type"] = gt
+    with patch("statcast_bigquery.client.pb.statcast", return_value=fixture_df):
+        result = StatcastClient(sleep_seconds=0, include_postseason=True).fetch(
+            "2024-04-01", "2024-04-01"
+        )
+    assert set(result["game_type"]) == {"R", "F", "D", "L", "W"}
