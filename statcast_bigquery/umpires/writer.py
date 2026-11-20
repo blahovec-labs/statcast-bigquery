@@ -13,6 +13,7 @@ import pandas as pd
 from google.cloud import bigquery
 from google.cloud.exceptions import NotFound
 
+from statcast_bigquery._atomic import atomic_replace
 from statcast_bigquery.umpires.schema import (
     GAME_UMPIRES_SCHEMA,
     get_umpires_partitioning,
@@ -85,31 +86,20 @@ class UmpireWriter:
         start_date: str,
         end_date: str,
     ) -> int:
-        """Idempotent DELETE+INSERT for [start_date, end_date]."""
+        """Idempotent, atomic replace of [start_date, end_date] (see _atomic.py)."""
         if len(df) == 0:
             log.info("empty umpires dataframe; skip write to %s", ref)
             return 0
 
-        delete_sql = (
-            f"DELETE FROM `{ref}` WHERE game_date BETWEEN @start AND @end"
-        )
-        params = [
-            bigquery.ScalarQueryParameter("start", "DATE", start_date),
-            bigquery.ScalarQueryParameter("end", "DATE", end_date),
-        ]
-        log.info("DELETE %s where game_date BETWEEN %s AND %s",
-                 ref, start_date, end_date)
-        self.client.query_and_wait(
-            delete_sql, job_config=bigquery.QueryJobConfig(query_parameters=params)
-        )
-
-        log.info("INSERT %d umpire rows -> %s", len(df), ref)
-        load_job_config = bigquery.LoadJobConfig(
+        log.info("replace %s game_date BETWEEN %s AND %s", ref, start_date, end_date)
+        return atomic_replace(
+            self.client,
+            str(ref),
+            df,
             schema=_bq_schema_from_umpire_specs(),
-            write_disposition=bigquery.WriteDisposition.WRITE_APPEND,
-            source_format=bigquery.SourceFormat.PARQUET,
+            where_sql="game_date BETWEEN @start AND @end",
+            query_parameters=[
+                bigquery.ScalarQueryParameter("start", "DATE", start_date),
+                bigquery.ScalarQueryParameter("end", "DATE", end_date),
+            ],
         )
-        self.client.load_table_from_dataframe(
-            df, str(ref), job_config=load_job_config
-        ).result()
-        return len(df)

@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.5.1] - 2026-11-19
+
+### Fixed
+- Writes are now atomic. The pitch, umpire and games writers ran `DELETE` as its
+  own query and then a separate load job, so a failed load left the slice deleted
+  and not replaced. On 2026-06-09 a load failure (the `miss_distance` column, fixed
+  in 0.4.1) wiped the 2026-06-02..06-08 window; later daily runs refilled most of
+  it, but 2026-06-02 had aged out of the lookback and stayed empty. All three
+  writers now load into a short-lived staging table first, then `DELETE` +
+  `INSERT ... SELECT` in one multi-statement transaction, then drop the staging
+  table (which also carries a 6-hour expiry as a backstop). A failed load no longer
+  deletes anything; a failed swap rolls back. The games writer, which replaces a
+  whole season, was exposed to the same failure.
+
 ## [0.5.0] - 2026-10-01
 
 ### Added

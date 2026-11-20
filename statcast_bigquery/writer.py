@@ -9,6 +9,7 @@ import pandas as pd
 from google.cloud import bigquery
 from google.cloud.exceptions import NotFound
 
+from statcast_bigquery._atomic import atomic_replace
 from statcast_bigquery.schema import PITCHES_SCHEMA, get_partitioning
 
 log = logging.getLogger(__name__)
@@ -110,31 +111,24 @@ class BigQueryWriter:
         start_date: str,
         end_date: str,
     ) -> int:
-        """Write `df` for [start_date, end_date], idempotent (DELETE-then-INSERT, transactional)."""
+        """Replace [start_date, end_date] with `df`, idempotent and atomic.
+
+        Loads into a staging table, then DELETE + INSERT in one transaction (see
+        _atomic.py), so a failed load can no longer wipe the window.
+        """
         if len(df) == 0:
             log.info("empty dataframe; skip write to %s", ref)
             return 0
 
-        delete_sql = (
-            f"DELETE FROM `{ref}` "
-            f"WHERE game_date BETWEEN @start AND @end"
-        )
-        params = [
-            bigquery.ScalarQueryParameter("start", "DATE", start_date),
-            bigquery.ScalarQueryParameter("end", "DATE", end_date),
-        ]
-        job_config = bigquery.QueryJobConfig(query_parameters=params)
-        log.info("DELETE %s where game_date BETWEEN %s AND %s", ref, start_date, end_date)
-        self.client.query_and_wait(delete_sql, job_config=job_config)
-
-        log.info("INSERT %d rows -> %s", len(df), ref)
-        load_job_config = bigquery.LoadJobConfig(
+        log.info("replace %s game_date BETWEEN %s AND %s", ref, start_date, end_date)
+        return atomic_replace(
+            self.client,
+            str(ref),
+            _coerce_df_to_schema(df),
             schema=_bq_schema_from_specs(),
-            write_disposition=bigquery.WriteDisposition.WRITE_APPEND,
-            source_format=bigquery.SourceFormat.PARQUET,
+            where_sql="game_date BETWEEN @start AND @end",
+            query_parameters=[
+                bigquery.ScalarQueryParameter("start", "DATE", start_date),
+                bigquery.ScalarQueryParameter("end", "DATE", end_date),
+            ],
         )
-        df = _coerce_df_to_schema(df)
-        self.client.load_table_from_dataframe(
-            df, str(ref), job_config=load_job_config
-        ).result()
-        return len(df)

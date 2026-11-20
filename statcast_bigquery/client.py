@@ -65,7 +65,7 @@ class StatcastClient:
             log.info("statcast: no data for %s -> %s", start_date, end_date)
             return pd.DataFrame()
 
-        result = df[df["game_type"].isin(self.game_types)].copy()
+        result = df[df["game_type"].isin(sorted(self.game_types))].copy()
         if not isinstance(result, pd.DataFrame):
             result = pd.DataFrame(result)
         log.info("statcast: %d pitches (game types %s)", len(result), sorted(self.game_types))

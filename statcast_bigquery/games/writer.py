@@ -17,6 +17,7 @@ import pandas as pd
 from google.cloud import bigquery
 from google.cloud.exceptions import NotFound
 
+from statcast_bigquery._atomic import atomic_replace
 from statcast_bigquery.games.schema import GAMES_SCHEMA, get_games_partitioning
 
 log = logging.getLogger(__name__)
@@ -98,27 +99,22 @@ class GameWriter:
             return 0
 
         season_array = ",".join(str(s) for s in seasons_list)
-        delete_sql = f"DELETE FROM `{ref}` WHERE season IN ({season_array})"
-        log.info("DELETE %s where season IN (%s)", ref, season_array)
-        self.client.query_and_wait(delete_sql)
-
         if len(df) == 0:
             log.info("empty games dataframe for seasons %s; DELETE-only", season_array)
-            return 0
+        else:
+            log.info("replace %d games -> %s season IN (%s)", len(df), ref, season_array)
+            # pyarrow stricter on dtypes when target is INT64 NULLABLE; cast.
+            for col in ("final_home_score", "final_away_score", "probable_home_pitcher_id",
+                        "probable_away_pitcher_id", "venue_id", "game_number"):
+                if col in df.columns:
+                    df[col] = df[col].astype("Int64")
 
-        log.info("INSERT %d games -> %s", len(df), ref)
-        load_job_config = bigquery.LoadJobConfig(
+        # Staging load + one-transaction swap (see _atomic.py): a failed load used to
+        # leave the whole season deleted.
+        return atomic_replace(
+            self.client,
+            str(ref),
+            df,
             schema=_bq_schema_from_games_specs(),
-            write_disposition=bigquery.WriteDisposition.WRITE_APPEND,
-            source_format=bigquery.SourceFormat.PARQUET,
+            where_sql=f"season IN ({season_array})",
         )
-        # pyarrow stricter on dtypes when target is INT64 NULLABLE; cast.
-        for col in ("final_home_score", "final_away_score", "probable_home_pitcher_id",
-                    "probable_away_pitcher_id", "venue_id", "game_number"):
-            if col in df.columns:
-                df[col] = df[col].astype("Int64")
-
-        self.client.load_table_from_dataframe(
-            df, str(ref), job_config=load_job_config
-        ).result()
-        return len(df)
