@@ -63,9 +63,10 @@ def test_idempotent_write_emits_delete_then_insert():
 
     writer.write(ref, df, start_date="2024-04-01", end_date="2024-04-01")
 
-    # First call should be the DELETE (transactional) — verify query_and_wait was used
-    assert client.query_and_wait.call_count >= 1
-    delete_sql = client.query_and_wait.call_args_list[0].args[0]
+    # The DELETE runs through query_and_wait (inside the transactional swap)
+    deletes = [c.args[0] for c in client.query_and_wait.call_args_list if "DELETE" in c.args[0]]
+    assert len(deletes) == 1
+    delete_sql = deletes[0]
     assert "DELETE" in delete_sql
     assert "BETWEEN" in delete_sql
 

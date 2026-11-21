@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.2] - 2026-11-21
+
+### Added
+- A shrink guard on every replace. Atomic writes stop a failed load from wiping data, but not a load that succeeds with a short frame (an upstream outage that returns half the slice, or nothing). Before swapping, the writer now counts the rows already in the slice and raises `ShrinkGuardError`, deleting nothing, if the new frame is under 50% of them. Slices under 100 rows are exempt. Set `BIGQUERY_ALLOW_SHRINK=1` for a run where the source really did shrink. Every replace also logs `existing -> incoming` row counts. This also changes the games writer's empty-fetch behavior: an empty fetch over a populated season is now refused instead of clearing it.
+
+### Fixed
+- `statcast_bigquery.__version__` reported `0.4.0` since 0.4.0; it now matches the package version.
+
 ## [0.5.1] - 2026-11-19
 
 ### Fixed
